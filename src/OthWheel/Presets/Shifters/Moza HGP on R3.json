@@ -1,0 +1,7 @@
+{
+  "Format": 1,
+  "Name": "Moza HGP shifter (on the R3 base)",
+  "Notes": "Measured 2026-10-23: the HGP plugged into the R3 base reports its gears as buttons of the R3 device (1-7 = 113-119, R = 112). Without an HGP these buttons never fire, and the shifter only takes over after the first gear is engaged.",
+  "Device": { "Name": "R3 Racing Wheel and Pedals", "UsbId": "346E:0005" },
+  "Gears": { "1": 113, "2": 114, "3": 115, "4": 116, "5": 117, "6": 118, "7": 119, "R": 112 }
+}

@@ -1,0 +1,45 @@
+{
+  "Format": 1,
+  "Name": "Moza R3 + ES rim + SR-P Lite pedals",
+  "Notes": "Measured on a real R3 bundle (2026-10-18). Pit House profile: 540 degrees. Clutch (SR-P Lite clutch kit, through the base) measured 2026-10-23: Slider1, rests at 0 without a clutch too.",
+  "Devices": [
+    { "Name": "R3 Racing Wheel and Pedals", "UsbId": "346E:0005" }
+  ],
+  "Steering": { "Device": 0, "Axis": "X", "Left": 0, "Center": 32767, "Right": 65535 },
+  "RotationDegrees": 540,
+  "Throttle": { "Device": 0, "Axis": "Z", "Released": 0, "Pressed": 65535 },
+  "Brake": { "Device": 0, "Axis": "Rz", "Released": 0, "Pressed": 65535 },
+  "Clutch": { "Device": 0, "Axis": "Slider1", "Released": 0, "Pressed": 65535 },
+  "Ffb": { "Device": 0, "Direction": -1, "Strength": 1.0 },
+  "Buttons": {
+    "GearUp": { "Device": 0, "Button": 13 },
+    "GearDown": { "Device": 0, "Button": 12 },
+    "HiLo": { "Device": 0, "Button": 2 },
+    "WinchAttach": { "Device": 0, "Button": 3 },
+    "WinchRelease": { "Device": 0, "Button": 1 },
+    "WinchExtendAndInteract": { "Device": 0, "Button": 0 },
+    "Headlights": { "Device": 0, "Button": 18 },
+    "ParkingBrake": { "Device": 0, "Button": 31 },
+    "Map": { "Device": 0, "Button": 23 },
+    "Pause": { "Device": 0, "Button": 37 },
+    "Horn": { "Device": 0, "Button": 20 },
+    "Ignition": { "Device": 0, "Button": 35 },
+    "ResetCar": { "Device": 0, "Button": 32 },
+    "PushCar": { "Device": 0, "Button": 19 },
+    "CameraLeft": { "Device": 0, "Button": 7 },
+    "CameraRight": { "Device": 0, "Button": 5 },
+    "CameraUp": { "Device": 0, "Button": 4 },
+    "CameraDown": { "Device": 0, "Button": 6 },
+    "ZoomIn": { "Device": 0, "Button": 36 },
+    "ZoomOut": { "Device": 0, "Button": 24 },
+    "CycleFfbProfile": { "Device": 0, "Button": 22 },
+    "CockpitView": { "Device": 0, "Button": 21 }
+  },
+  "Labels": {
+    "0:0": "A", "0:1": "B", "0:2": "X", "0:3": "Y",
+    "0:4": "D-pad up", "0:5": "D-pad right", "0:6": "D-pad down", "0:7": "D-pad left",
+    "0:12": "left paddle", "0:13": "right paddle",
+    "0:18": "N", "0:19": "WIP", "0:20": "FL", "0:21": "CAM", "0:22": "RADIO", "0:23": "S1", "0:24": "HOME",
+    "0:31": "P", "0:32": "BOX", "0:33": "PL", "0:35": "START", "0:36": "S2", "0:37": "MENU"
+  }
+}

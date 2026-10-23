@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>OthWheel</AssemblyName>
+    <RootNamespace>OthWheel</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BepInEx build. The MelonLoader build (..\OthWheel.Melon) compiles the same files with MELON defined. -->
+    <Compile Remove="Loader.Melon.cs" />
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+    <!-- Built-in wheel presets, matched by USB id. Add a shared setup here to support a new wheel. -->
+    <EmbeddedResource Include="Presets\*.json" />
+    <EmbeddedResource Include="Presets\Shifters\*.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(BepInExCore)\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\0Harmony.dll" Private="false" />
+    <!-- Same alias trick as the probe: UnityDirectInput's namespace clashes with a game class. -->
+    <Reference Include="$(Interop)\*.dll" Exclude="$(Interop)\UnityDirectInput.Runtime.dll" Private="false" />
+    <Reference Include="$(Interop)\UnityDirectInput.Runtime.dll" Aliases="udi" Private="false" />
+  </ItemGroup>
+</Project>

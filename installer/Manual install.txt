@@ -1,0 +1,37 @@
+MANUAL INSTALL (instead of Install.bat)
+=======================================
+
+Only for people who install mods by hand. Install.bat does all of
+this by itself, plus the game setting and the Moza Pit House profile.
+
+Use ONE mod loader, not both. Pick the one your other mods use.
+OthWheel = wheel mod, OthCockpit = cockpit view: copy one or both.
+
+MelonLoader (most over the hill mods use it)
+  1. Install MelonLoader 0.7.3 or newer into the game folder
+     (https://github.com/LavaGang/MelonLoader/releases).
+  2. Copy the contents of the MelonLoader folder from here into
+     <game folder>\ :
+       Mods\OthWheel.Melon.dll, Mods\OthCockpit.Melon.dll,
+       UserData\OthCockpit\models\ (one file per car)
+  Wheel settings and setups: <game folder>\UserData\OthWheel\
+  Cockpit settings:          <game folder>\UserData\OthCockpit\
+
+BepInEx (BepInEx 6 for Unity IL2CPP, e.g. be.789)
+  1. Install BepInEx 6 (IL2CPP, x64) into the game folder.
+  2. Copy the contents of the BepInEx folder from here into
+     <game folder>\ :
+       BepInEx\plugins\OthWheel.dll, BepInEx\plugins\OthCockpit.dll,
+       BepInEx\plugins\OthCockpit\models\ (one file per car)
+  Wheel settings: <game folder>\BepInEx\config\jonkomonk.oth.wheel.cfg
+  Wheel setups: <game folder>\BepInEx\config\OthWheel\
+  Cockpit settings: <game folder>\BepInEx\config\jonkomonk.oth.cockpit.cfg
+
+Install.bat also switches on one hidden game setting
+(DIRECT_INPUT_DEVICES_SUPPORT_ENABLED in the game's settings file).
+The wheel mod was only tested with it on. If something doesn't work
+after a manual install, run Install.bat once.
+
+Don't install another wheel mod (e.g. TrailWheel) at the same time:
+two wheel mods fight over the wheel. Same for another first-person
+camera mod and the cockpit view.

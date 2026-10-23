@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>OthWheelProbe</AssemblyName>
+    <RootNamespace>OthWheelProbe</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(BepInExCore)\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\Il2CppInterop.Common.dll" Private="false" />
+    <Reference Include="$(BepInExCore)\0Harmony.dll" Private="false" />
+    <!-- UnityDirectInput's namespace "DirectInputManager" clashes with the game's
+         global class of the same name, so that assembly gets an alias. -->
+    <Reference Include="$(Interop)\*.dll" Exclude="$(Interop)\UnityDirectInput.Runtime.dll" Private="false" />
+    <Reference Include="$(Interop)\UnityDirectInput.Runtime.dll" Aliases="udi" Private="false" />
+  </ItemGroup>
+</Project>

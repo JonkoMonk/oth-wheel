@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Out-of-game test for src/Shared/DInput.cs: lists devices, prints live state, checks force feedback. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>OthWheel</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\DInput.cs" LinkBase="Shared" />
+    <Compile Include="..\OthWheel\Profile.cs" LinkBase="OthWheel" />
+    <EmbeddedResource Include="..\OthWheel\Presets\*.json" LinkBase="Presets" />
+  </ItemGroup>
+</Project>

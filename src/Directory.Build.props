@@ -1,0 +1,16 @@
+<Project>
+  <!-- Keep build output out of OneDrive to avoid sync locks. -->
+  <PropertyGroup>
+    <BuildRoot>$(USERPROFILE)\dev\oth-wheelmod-build</BuildRoot>
+    <BaseIntermediateOutputPath>$(BuildRoot)\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(BuildRoot)\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <!-- References come from test copies of the game (one per loader), so the build doesn't depend on
+         which loader the real game has (it runs MelonLoader since 2026-10-18). -->
+    <BepGameDir>$(USERPROFILE)\dev\oth-bep-test\game</BepGameDir>
+    <BepInExCore>$(BepGameDir)\BepInEx\core</BepInExCore>
+    <Interop>$(BepGameDir)\BepInEx\interop</Interop>
+    <!-- MelonLoader build: references come from a game copy with MelonLoader (only one loader per game folder). -->
+    <MelonGameDir>$(USERPROFILE)\dev\oth-ml-test\game</MelonGameDir>
+    <MelonDir>$(MelonGameDir)\MelonLoader</MelonDir>
+  </PropertyGroup>
+</Project>
