@@ -2,14 +2,16 @@
 
 Drive **over the hill** (Funselektor, Steam) with a real wheel: steering, throttle, brake, clutch, H-shifter, wheel buttons, and **force feedback calculated from the car's tyres** — you feel grip, bumps, slides and crashes. Single player and co-op.
 
+Watch it in action: [mod spotlight video](https://youtu.be/rHvPhiTygKQ). Download: [OTH Wheel on Nexus Mods](https://www.nexusmods.com/overthehill/mods/83).
+
 - **Moza R3** (ES rim, SR-P Lite pedals, HGP shifter): works right away.
 - **Any other wheel** (Logitech, Thrustmaster, Fanatec, Moza, Simagic, …): an in-game setup wizard (**F3**) asks you to turn the wheel, press the pedals and pick your buttons. About 2 minutes.
 
-[**OTH Cockpit**](https://github.com/JonkoMonk/oth-cockpit) (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer.
+[**OTH Cockpit**](https://github.com/JonkoMonk/oth-cockpit) (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer ([OTH Cockpit on Nexus Mods](https://www.nexusmods.com/overthehill/mods/90)).
 
 ## Download
 
-From the [Releases](../../releases) page (or Nexus Mods), pick one:
+From [Nexus Mods](https://www.nexusmods.com/overthehill/mods/83) or the [Releases](../../releases) page, pick one:
 
 | Zip | Contains |
 |---|---|
