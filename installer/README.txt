@@ -30,7 +30,10 @@ livery. Works with keyboard, controller or wheel; with the OTH Wheel
 mod the cockpit steering wheel turns exactly like your real one.
 This is an early version: every car has a cockpit, but many still
 have rough spots (parts in the wrong place, dials hidden behind the
-wheel, ...). Feedback and screenshots are very welcome.
+wheel, ...). Some cars also still show small visual glitches, like
+thin dark lines or gaps around the windscreen pillars and window
+frames (the TrailBurner and Protector, for example). We're working on
+it. Feedback and screenshots are very welcome.
 
 @end
 Windows, Steam version of over the hill.
