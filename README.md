@@ -5,7 +5,7 @@ Drive **over the hill** (Funselektor, Steam) with a real wheel: steering, thrott
 - **Moza R3** (ES rim, SR-P Lite pedals, HGP shifter): works right away.
 - **Any other wheel** (Logitech, Thrustmaster, Fanatec, Moza, Simagic, …): an in-game setup wizard (**F3**) asks you to turn the wheel, press the pedals and pick your buttons. About 2 minutes.
 
-**OTH Cockpit** (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer.
+[**OTH Cockpit**](https://github.com/JonkoMonk/oth-cockpit) (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer.
 
 ## Download
 
