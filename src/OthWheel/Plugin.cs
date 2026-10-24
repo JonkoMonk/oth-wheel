@@ -10,7 +10,7 @@ namespace OthWheel;
 // and logging, call Start, then put StatusBehaviour on a GameObject.
 public static class Plugin
 {
-    public const string Guid = "jonkomonk.oth.wheel", Name = "OTH Wheel", Version = "0.11.5", Author = "JonkoMonk";
+    public const string Guid = "jonkomonk.oth.wheel", Name = "OTH Wheel", Version = "1.0.0", Author = "JonkoMonk";
 
     static Action<string> _info = Console.WriteLine, _warn = Console.WriteLine, _error = Console.WriteLine;
     static readonly HashSet<string> _reported = new();

@@ -30,6 +30,7 @@ internal static class CarPhysics
     public static ConfigEntry<ClutchMode> Mode;
     public static ConfigEntry<bool> Stalling;
     public static ConfigEntry<ClutchBite> Bite;
+    public static ConfigEntry<float> IdleThrottleInGear;
 
     // Set once the clutch pedal has been pressed past halfway this session (an R3 without a clutch pedal
     // still has the clutch axis in its setup; it then never moves).
@@ -55,6 +56,11 @@ internal static class CarPhysics
             "With the real clutch: the engine stalls if you stop in gear or let the clutch out too fast. Restart it with ignition.");
         Bite = cfg.Bind("Clutch", "Bite", ClutchBite.Sharp,
             "With the real clutch: Sharp = grabs right at the top of the pedal travel, like a new clutch. Smooth = takes over gradually as you release the pedal.");
+        IdleThrottleInGear = cfg.Bind("Clutch", "IdleThrottleInGear", 0.4f,
+            "With the real clutch and stalling: how far the engine's automatic idle control may open the throttle while you're in gear " +
+            "with the clutch out and the throttle released (0-1; the cars' own value is up to 0.8, which pulls the car up almost any hill at idle). " +
+            "Lower = stalls more easily under load (clutch dump uphill); too low = also stalls driving off on flat ground. In neutral, " +
+            "with the clutch pressed and while starting, the car's own value is used.");
     }
 
     public static void Install(HarmonyLib.Harmony h)
@@ -162,6 +168,7 @@ internal static class CarPhysics
             FollowCar();
             if (_car == null) return;
             ApplyClutch();
+            ApplyIdleThrottle();
             // On its own: a failure here (e.g. the car respawning) must not switch off the rest.
             try { WatchStall(now); } catch (Exception e) { Plugin.ErrorOnce("stall watch", e); }
             LogState(now);
@@ -221,8 +228,9 @@ internal static class CarPhysics
         // (Test 8: the old Smooth clutch of 1.4× peak slipped uphill instead of stalling.)
         float peak = _peakTorque > 1f ? _peakTorque : 150f;
         float torque = Math.Max(_origClutchTorque, Math.Max(1000f, peak * 3f));
+        // The engine's own idle control (maxIdleThrottle) stays as the game has it: capping it to 0.25 (v0.11.4/5)
+        // to make uphill clutch dumps stall also made the engine die at idle with the clutch pressed.
         var e = _car.engine; var c = _car.clutch;
-        ApplyIdleThrottle();
         if (_applied && c.type == Engine.ClutchType.FrictionDisc && e.canStall == Stalling.Value && c.maxTorqueTransfer == torque) return;
         e.canStall = Stalling.Value;
         c.type = Engine.ClutchType.FrictionDisc;
@@ -231,26 +239,29 @@ internal static class CarPhysics
         Plugin.Info($"real clutch on {_car.name}: bite {Bite.Value} (holds {torque:0} Nm), stalling {(Stalling.Value ? "on" : "off")}");
     }
 
-    static bool _idleCaught;
+    static bool _idleCapped;
 
     // The engine's idle control may open the throttle up to maxIdleThrottle (0.8 on the DingDing) to hold idle:
-    // far more than a real idle valve, so the engine fought off every stall uphill. Capped while stalling is on,
-    // but only once the engine has caught and reached idle: with the cap during cranking the starter only got it
-    // to ~400 rpm and it died again (v0.11.4 test, every restart failed).
+    // with the clutch out in 1st low that pulls the car up a hill at walking pace instead of stalling (v0.11.6
+    // test). Lowered only while in gear, clutch out, throttle released and the engine running: a cap at all
+    // times (v0.11.4/5, 0.25) made the engine die at idle with the clutch pressed and broke starting.
     static void ApplyIdleThrottle()
     {
         var e = _car.engine; var d = _car.data;
-        if (!Stalling.Value || d.Get(Channel.Vehicle, VehicleData.EngineStalled) != 0) _idleCaught = false;
-        else if (!_idleCaught && d.Get(Channel.Vehicle, VehicleData.EngineRpm) / 1000f >= 0.9f * e.idleRpm) _idleCaught = true;
-        float idleThrottle = _idleCaught ? Math.Min(_origIdleThrottle, 0.25f) : _origIdleThrottle;
-        if (e.maxIdleThrottle == idleThrottle) return;
-        e.maxIdleThrottle = idleThrottle;
-        Plugin.Info($"idle throttle {idleThrottle:0.00} ({(_idleCaught ? "engine at idle, capped" : "starting or stalled, the game's own")})");
+        bool cap = _applied && Stalling.Value && IdleThrottleInGear.Value < _origIdleThrottle &&
+                   d.Get(Channel.Vehicle, VehicleData.GearboxGear) != 0 &&
+                   d.Get(Channel.Input, InputData.Clutch) < 3000 && d.Get(Channel.Input, InputData.Throttle) < 500 &&
+                   d.Get(Channel.Vehicle, VehicleData.EngineWorking) != 0 && d.Get(Channel.Vehicle, VehicleData.EngineStarting) == 0;
+        float want = cap ? Math.Max(0f, IdleThrottleInGear.Value) : _origIdleThrottle;
+        if (e.maxIdleThrottle == want) return;
+        e.maxIdleThrottle = want;
+        if (cap != _idleCapped) Plugin.Info($"idle throttle {want:0.00} ({(cap ? "in gear, clutch out, no throttle" : "car's own")})");
+        _idleCapped = cap;
     }
 
     static void Restore()
     {
-        _idleCaught = false;
+        _idleCapped = false;
         if (!_applied) return;
         _applied = false;
         try
@@ -367,7 +378,9 @@ internal static class CarPhysics
         int rpm = d.Get(Channel.Vehicle, VehicleData.EngineRpm) / 1000;
         float lockRatio = e != null ? e.sensorClutchLock : -1f;
         string state = $"stalled={stalled}/{(e != null && e.sensorStalled)} gear={d.Get(Channel.Vehicle, VehicleData.GearboxGear)} " +
-                       $"clutchIn={d.Get(Channel.Input, InputData.Clutch) / 10000f:0.0} lock={lockRatio:0.0} rpm={rpm / 50 * 50} trans={Math.Abs(d.Get(Channel.Vehicle, VehicleData.TransmissionRpm) / 1000) / 50 * 50}";
+                       $"clutchIn={d.Get(Channel.Input, InputData.Clutch) / 10000f:0.0} lock={lockRatio:0.0} rpm={rpm / 50 * 50} trans={Math.Abs(d.Get(Channel.Vehicle, VehicleData.TransmissionRpm) / 1000) / 50 * 50}" +
+                       $" thr={d.Get(Channel.Input, InputData.Throttle) / 10000f:0.0} load={(e != null ? e.sensorLoad : -1f):0.0} idleMax={_car.engine.maxIdleThrottle:0.00}" +
+                       $" {(_car.cachedRigidbody != null ? _car.cachedRigidbody.velocity.magnitude * 3.6f : 0f):0} km/h slope {Math.Asin(Math.Clamp(_car.transform.forward.y, -1f, 1f)) * 57.3:0}°";
         if (state == _last) return;
         _last = state;
         _nextLog = now + 0.2f;
