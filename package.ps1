@@ -5,7 +5,8 @@
 # Every zip has the same installer: it offers the parts that are in its zip and keeps what an earlier
 # install put there. Works while the game is running (doesn't touch the installed plugins).
 # The cockpit mod is ..\..\OTH cockpit mod (DLLs rebuilt by its build.ps1; car models from its last
-# model build, assets_v2 if it exists). Each zip has both loaders, their licences and a "Manual install" folder.
+# model build, assets_v2 if it exists). Each zip has both loaders, their licences, our LICENSE.txt and a
+# "Manual install" folder.
 # Usage: powershell -File package.ps1 [-Parts Wheel,Cockpit,Pack]   (default: all three)
 param(
     [ValidateSet('Wheel', 'Cockpit', 'Pack')][string[]]$Parts = @('Wheel', 'Cockpit', 'Pack')
@@ -93,6 +94,7 @@ function New-Package([string]$name, [bool]$wheel, [bool]$cockpit) {
     New-Item -ItemType Directory -Force -Path $files, (Join-Path $files 'licenses') | Out-Null
 
     foreach ($f in 'Install.bat', 'Uninstall.bat') { Copy-Text (Join-Path $src $f) (Join-Path $stage $f) }
+    Copy-Text (Join-Path $PSScriptRoot 'LICENSE') (Join-Path $stage 'LICENSE.txt')
     Write-Text (Join-Path $src 'README.txt') (Join-Path $stage 'README.txt') $wheel $cockpit $title
     Copy-Item (Join-Path $src 'files\installer.ps1'), (Join-Path $src 'files\BepInEx.cfg'), $bepZip, $melonZip $files
     # MelonLoader's zip carries its own LICENSE/NOTICE (MelonLoader\Documentation); BepInEx's zip has none.
