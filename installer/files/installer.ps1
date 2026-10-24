@@ -1,6 +1,8 @@
-# Installer / uninstaller for the over the hill wheel mod and the cockpit mod (one pack).
+# Installer / uninstaller for the over the hill wheel mod and the cockpit mod.
 # Started by Install.bat / Uninstall.bat (Windows PowerShell 5.1). All user communication is pop-ups.
-# The player picks the parts: the wheel mod (steering wheels) and/or the cockpit view (everyone).
+# The same script ships in every zip (wheel only, cockpit only, both): it offers the parts that are in its
+# zip (files\OthWheel.Melon.dll = wheel mod, files\cockpit\ = cockpit view) and keeps what an earlier install
+# put there. Uninstall works on what is installed, whatever zip it comes from, and asks which mods to remove.
 #
 # Mod loader choice (only one loader per game folder works):
 #   no loader yet        -> install MelonLoader (most over the hill mods use it) + our DLLs in Mods\
@@ -17,7 +19,6 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
-$Title = 'over the hill - wheel mod & cockpit'
 $FilesDir = $PSScriptRoot
 $PackageDir = Split-Path $FilesDir -Parent
 $GameExe = 'over the hill.exe'
@@ -25,6 +26,13 @@ $BepDll = 'OthWheel.dll'
 $MelonDll = 'OthWheel.Melon.dll'
 $PluginCfg = 'jonkomonk.oth.wheel.cfg'
 $CockpitFiles = Join-Path $FilesDir 'cockpit'
+# What this zip contains.
+$HasWheel = Test-Path (Join-Path $FilesDir $MelonDll)
+$HasCockpit = Test-Path (Join-Path $CockpitFiles 'models')
+$PackageName = 'OTH mods'
+$packageTxt = Join-Path $FilesDir 'package.txt'
+if (Test-Path $packageTxt) { $PackageName = (Get-Content $packageTxt -Raw).Trim() }
+$Title = "over the hill - $PackageName"
 $CockpitBepDll = 'OthCockpit.dll'
 $CockpitMelonDll = 'OthCockpit.Melon.dll'
 $CockpitCfg = 'jonkomonk.oth.cockpit.cfg'
@@ -335,24 +343,41 @@ function Install-Cockpit([string]$game, [bool]$bep) {
     return $cars.Count
 }
 
+function Get-PartVersion([string]$file) {
+    if (Test-Path $file) { return (Get-Content $file -Raw).Trim() }
+    return '?'
+}
+
 function Install-Mod {
-    $version = (Get-Content (Join-Path $FilesDir 'version.txt') -Raw).Trim()
-    $r = Show-Message ("This installs mods for over the hill (pack $version). You choose the parts in the next two questions:`n`n" +
-        "WHEEL MOD (for steering wheels)`n" +
-        "  - steering wheel, pedals (clutch too) and wheel buttons`n" +
-        "  - force feedback calculated from the car's tyres`n" +
-        "  - Moza R3 works right away; other wheels are set up with an in-game wizard`n`n" +
-        "COCKPIT VIEW (for everyone: keyboard, controller or wheel)`n" +
-        "  - first-person view from the driver's seat with a real interior`n" +
-        "  - working dials, warning lights, steering wheel, pedals and levers`n" +
-        "  - cars with a cockpit so far: $(Get-CockpitCars)`n`n" +
+    if (-not $HasWheel -and -not $HasCockpit) { Fail 'This installer folder contains no mod files. Extract the whole zip again.' }
+    $wheelVersion = Get-PartVersion (Join-Path $FilesDir 'version.txt')
+    $cockpitVersion = Get-PartVersion (Join-Path $CockpitFiles 'version.txt')
+    $both = $HasWheel -and $HasCockpit
+    $intro = if ($both) { "This installs mods for over the hill. You choose the parts in the next two questions:`n`n" } else { "This installs a mod for over the hill:`n`n" }
+    if ($HasWheel) {
+        $intro += "WHEEL MOD $wheelVersion (for steering wheels)`n" +
+            "  - steering wheel, pedals (clutch too), H-shifter and wheel buttons`n" +
+            "  - force feedback calculated from the car's tyres`n" +
+            "  - Moza R3 works right away; other wheels are set up with an in-game wizard`n`n"
+    }
+    if ($HasCockpit) {
+        $intro += "COCKPIT VIEW $cockpitVersion (for everyone: keyboard, controller or wheel)`n" +
+            "  - first-person view from the driver's seat with an interior`n" +
+            "  - working dials, warning lights, steering wheel, pedals and levers`n" +
+            "  - early version: all cars have a cockpit, many still with rough spots`n`n"
+    }
+    $r = Show-Message ($intro +
         "It uses a mod loader: MelonLoader (installed if the game has no mod loader yet), or BepInEx if you already use that. " +
         "No original game files are changed, and Uninstall.bat removes everything again.`n`n" +
         "Continue?") 'Question' 'YesNo'
     if ($r -ne 'Yes') { exit 0 }
-    $wheel = (Show-Message "Install the WHEEL MOD?`n`n(Yes if you play with a steering wheel. No for keyboard / controller only.)" 'Question' 'YesNo') -eq 'Yes'
-    $cockpit = (Show-Message "Install the COCKPIT VIEW?`n`n(First-person view from the driver's seat.)" 'Question' 'YesNo') -eq 'Yes'
-    if (-not $wheel -and -not $cockpit) { Show-Message 'Nothing selected, so nothing was installed.' | Out-Null; exit 0 }
+    $wheel = $HasWheel
+    $cockpit = $HasCockpit
+    if ($both) {
+        $wheel = (Show-Message "Install the WHEEL MOD?`n`n(Yes if you play with a steering wheel. No for keyboard / controller only.)" 'Question' 'YesNo') -eq 'Yes'
+        $cockpit = (Show-Message "Install the COCKPIT VIEW?`n`n(First-person view from the driver's seat.)" 'Question' 'YesNo') -eq 'Yes'
+        if (-not $wheel -and -not $cockpit) { Show-Message 'Nothing selected, so nothing was installed.' | Out-Null; exit 0 }
+    }
 
     $game = Find-Game
     Wait-GameClosed
@@ -374,12 +399,14 @@ function Install-Mod {
     $before = Read-InstallLog $result.Log
     $wheelInstalled = $wheel -or ($before['Wheel mod installed'] -eq 'True') -or ($before.Count -gt 0 -and -not $before.ContainsKey('Wheel mod installed'))
     $cockpitInstalled = $cockpit -or ($before['Cockpit installed'] -eq 'True')
-    Set-Content -Path $result.Log -Value (@(
-        "OTH mods pack $version installed $(Get-Date -Format 'yyyy-MM-dd HH:mm')") + $result.Lines + @(
+    $lines = @("$PackageName installed $(Get-Date -Format 'yyyy-MM-dd HH:mm')") + $result.Lines + @(
         "Wheel mod installed: $wheelInstalled",
+        "Wheel mod version: $(if ($wheel) { $wheelVersion } else { $before['Wheel mod version'] })",
         "Cockpit installed: $cockpitInstalled",
+        "Cockpit version: $(if ($cockpit) { $cockpitVersion } else { $before['Cockpit version'] })",
         "Mod loader was already installed before: $($hasBep -or $hasMelon)",
-        "Game DirectInput setting: $diResult"))
+        "Game DirectInput setting: $(if ($wheel -or -not $before['Game DirectInput setting']) { $diResult } else { $before['Game DirectInput setting'] })")
+    Set-Content -Path $result.Log -Value $lines
     if ($diResult -eq 'missing') {
         Show-Message ("The game's settings file doesn't exist yet (the game was never started on this PC).`n`n" +
             "Start the game once until the main menu, close it, and run Install.bat again. That's needed only once.") 'Warning' | Out-Null
@@ -424,106 +451,135 @@ function Install-Mod {
         ForEach-Object { if ($_ -eq 'Yes') { Start-Process notepad.exe (Join-Path $PackageDir 'README.txt') } }
 }
 
-# "DingDing, Protector" from the models in the pack.
-function Get-CockpitCars {
-    $names = @(Get-ChildItem -Path (Join-Path $CockpitFiles 'models') -Filter 'Car_*.glb' -File -ErrorAction SilentlyContinue |
-        ForEach-Object { $_.BaseName -replace '^Car_', '' })
-    if ($names.Count -eq 0) { return 'none yet' }
-    return $names -join ', '
-}
-
 # --- uninstall ------------------------------------------------------------------------------------
 
-function Uninstall-BepInEx([string]$game) {
-    $bep = Join-Path $game 'BepInEx'
-    foreach ($f in @("plugins\$BepDll", "config\$PluginCfg", 'OthWheel-install.txt', 'config\OthWheel-reconnect-crashed',
-                     "plugins\$CockpitBepDll", "config\$CockpitCfg")) {
-        $p = Join-Path $bep $f
-        if (Test-Path $p) { Remove-Item $p -Force }
-    }
-    Get-ChildItem -Path (Join-Path $bep 'config') -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*.oth.wheel.cfg' } | Remove-Item -Force
-    foreach ($dir in 'config\OthWheel', 'plugins\OthCockpit') {
-        $p = Join-Path $bep $dir
+function Remove-Paths([string]$base, [string[]]$rels) {
+    foreach ($rel in $rels) {
+        $p = Join-Path $base $rel
         if (Test-Path $p) { Remove-Item $p -Recurse -Force }
-    }
-
-    $otherPlugins = @(Get-ChildItem -Path (Join-Path $bep 'plugins') -Recurse -File -Filter '*.dll' -ErrorAction SilentlyContinue)
-    $removeLoader = $true
-    if ($otherPlugins.Count -gt 0) {
-        $r = Show-Message ("The wheel mod and cockpit view are removed.`n`nThe BepInEx mod loader also has other mods installed:`n  " + (($otherPlugins | Select-Object -First 5 | ForEach-Object Name) -join "`n  ") +
-            "`n`nRemove BepInEx (and those mods) too?") 'Question' 'YesNo'
-        $removeLoader = ($r -eq 'Yes')
-    }
-    if ($removeLoader) {
-        foreach ($item in $BepItems) {
-            $p = Join-Path $game $item
-            if (Test-Path $p) { Remove-Item $p -Recurse -Force }
-        }
     }
 }
 
-function Uninstall-MelonLoader([string]$game) {
-    $log = Read-InstallLog (Join-Path $game 'UserData\OthWheel-install.txt')
-    foreach ($rel in "Mods\$MelonDll", 'UserData\OthWheel-install.txt', "Mods\$CockpitMelonDll") {
-        $p = Join-Path $game $rel
-        if (Test-Path $p) { Remove-Item $p -Force }
+# $wheel / $cockpit: which mods to remove. $last: nothing of ours stays, so the install log and maybe the loader go too.
+function Uninstall-BepInEx([string]$game, [bool]$wheel, [bool]$cockpit, [bool]$last) {
+    $bep = Join-Path $game 'BepInEx'
+    if ($wheel) {
+        Remove-Paths $bep @("plugins\$BepDll", "config\$PluginCfg", 'config\OthWheel-reconnect-crashed', 'config\OthWheel')
+        Get-ChildItem -Path (Join-Path $bep 'config') -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*.oth.wheel.cfg' } | Remove-Item -Force
     }
-    foreach ($dir in 'UserData\OthWheel', 'UserData\OthCockpit') {
-        $p = Join-Path $game $dir
-        if (Test-Path $p) { Remove-Item $p -Recurse -Force }
-    }
+    if ($cockpit) { Remove-Paths $bep @("plugins\$CockpitBepDll", "config\$CockpitCfg", 'plugins\OthCockpit') }
+    if (-not $last) { return }
+    Remove-Paths $bep @('OthWheel-install.txt')
 
-    # A wheel mod we parked during install: offer to bring it back.
-    $parked = Join-Path $game 'Mods\disabled\TrailWheel.dll'
-    if ($log['TrailWheel moved to'] -and (Test-Path $parked)) {
-        $r = Show-Message "The installer moved TrailWheel (another wheel mod) to Mods\disabled\.`n`nMove it back so it works again?" 'Question' 'YesNo'
-        if ($r -eq 'Yes') {
-            Move-Item $parked (Join-Path $game 'Mods\TrailWheel.dll') -Force
-            $dir = Join-Path $game 'Mods\disabled'
-            if (-not (Get-ChildItem $dir -Force -ErrorAction SilentlyContinue)) { Remove-Item $dir -Force }
+    $otherPlugins = @(Get-ChildItem -Path (Join-Path $bep 'plugins') -Recurse -File -Filter '*.dll' -ErrorAction SilentlyContinue)
+    if ($otherPlugins.Count -gt 0) {
+        $r = Show-Message ("The OTH mods are removed.`n`nThe BepInEx mod loader also has other mods installed:`n  " + (($otherPlugins | Select-Object -First 5 | ForEach-Object Name) -join "`n  ") +
+            "`n`nRemove BepInEx (and those mods) too?") 'Question' 'YesNo'
+        if ($r -ne 'Yes') { return }
+    }
+    Remove-Paths $game $BepItems
+}
+
+function Uninstall-MelonLoader([string]$game, [bool]$wheel, [bool]$cockpit, [bool]$last) {
+    $logPath = Join-Path $game 'UserData\OthWheel-install.txt'
+    $log = Read-InstallLog $logPath
+    if ($wheel) {
+        Remove-Paths $game @("Mods\$MelonDll", 'UserData\OthWheel')
+        # A wheel mod we parked during install: offer to bring it back.
+        $parked = Join-Path $game 'Mods\disabled\TrailWheel.dll'
+        if ($log['TrailWheel moved to'] -and (Test-Path $parked)) {
+            $r = Show-Message "The installer moved TrailWheel (another wheel mod) to Mods\disabled\.`n`nMove it back so it works again?" 'Question' 'YesNo'
+            if ($r -eq 'Yes') {
+                Move-Item $parked (Join-Path $game 'Mods\TrailWheel.dll') -Force
+                $dir = Join-Path $game 'Mods\disabled'
+                if (-not (Get-ChildItem $dir -Force -ErrorAction SilentlyContinue)) { Remove-Item $dir -Force }
+            }
         }
     }
+    if ($cockpit) { Remove-Paths $game @("Mods\$CockpitMelonDll", 'UserData\OthCockpit') }
+    if (-not $last) { return }
+    Remove-Paths $game @('UserData\OthWheel-install.txt')
 
     # MelonLoader itself: only if this installer put it there.
     if ($log['MelonLoader installed by this installer'] -ne 'True') { return }
     $otherMods = @(Get-ChildItem -Path (Join-Path $game 'Mods'), (Join-Path $game 'Plugins') -Recurse -File -Filter '*.dll' -ErrorAction SilentlyContinue)
     if ($otherMods.Count -gt 0) {
-        $r = Show-Message ("The wheel mod and cockpit view are removed.`n`nMelonLoader (installed together with them) is also used by other mods:`n  " + (($otherMods | Select-Object -First 5 | ForEach-Object Name) -join "`n  ") +
+        $r = Show-Message ("The OTH mods are removed.`n`nMelonLoader (installed together with them) is also used by other mods:`n  " + (($otherMods | Select-Object -First 5 | ForEach-Object Name) -join "`n  ") +
             "`n`nRemove MelonLoader (and those mods) too?") 'Question' 'YesNo'
         if ($r -ne 'Yes') { return }
     }
-    foreach ($item in $MelonItems) {
-        $p = Join-Path $game $item
-        if (Test-Path $p) { Remove-Item $p -Recurse -Force }
+    Remove-Paths $game $MelonItems
+}
+
+# After removing one mod while the other stays: record that in the install log.
+function Update-InstallLog([string]$path, [bool]$wheelRemoved, [bool]$cockpitRemoved) {
+    if (-not (Test-Path $path)) { return }
+    $lines = foreach ($line in Get-Content $path) {
+        if ($wheelRemoved -and $line -like 'Wheel mod installed:*') { 'Wheel mod installed: False' }
+        elseif ($cockpitRemoved -and $line -like 'Cockpit installed:*') { 'Cockpit installed: False' }
+        else { $line }
     }
+    Set-Content -Path $path -Value $lines
 }
 
 function Uninstall-Mod {
-    $r = Show-Message "This removes the wheel mod and the cockpit view (and your wheel setups and cockpit settings) from over the hill.`n`nContinue?" 'Question' 'YesNo'
-    if ($r -ne 'Yes') { exit 0 }
-
     $game = Find-Game
     Wait-GameClosed
-    Ensure-WriteAccess $game
 
-    $found = $false
-    if ((Test-Path (Join-Path $game "BepInEx\plugins\$BepDll")) -or (Test-Path (Join-Path $game "BepInEx\plugins\$CockpitBepDll")) -or
-        (Test-Path (Join-Path $game 'BepInEx\OthWheel-install.txt'))) { Uninstall-BepInEx $game; $found = $true }
-    if ((Test-Path (Join-Path $game "Mods\$MelonDll")) -or (Test-Path (Join-Path $game "Mods\$CockpitMelonDll")) -or
-        (Test-Path (Join-Path $game 'UserData\OthWheel-install.txt'))) { Uninstall-MelonLoader $game; $found = $true }
-
-    $presetDir = Get-PitHousePresetDir
-    $preset = if ($presetDir) { Join-Path $presetDir "$PresetId.mzpreset" } else { $null }
-    $presetNote = ''
-    if ($preset -and (Test-Path $preset)) {
-        $r = Show-Message "Also remove the Pit House profile 'R3 - over the hill (wheel mod)'?" 'Question' 'YesNo'
-        if ($r -eq 'Yes' -and (Wait-PitHouseClosed 'It has to be closed to remove the profile.')) { Remove-Item $preset -Force; $presetNote = "`nThe Pit House profile was removed." }
+    $bepWheel = Test-Path (Join-Path $game "BepInEx\plugins\$BepDll")
+    $bepCockpit = Test-Path (Join-Path $game "BepInEx\plugins\$CockpitBepDll")
+    $melonWheel = Test-Path (Join-Path $game "Mods\$MelonDll")
+    $melonCockpit = Test-Path (Join-Path $game "Mods\$CockpitMelonDll")
+    $bepLog = Test-Path (Join-Path $game 'BepInEx\OthWheel-install.txt')
+    $melonLog = Test-Path (Join-Path $game 'UserData\OthWheel-install.txt')
+    $hasWheel = $bepWheel -or $melonWheel
+    $hasCockpit = $bepCockpit -or $melonCockpit
+    if (-not ($hasWheel -or $hasCockpit -or $bepLog -or $melonLog)) {
+        Show-Message "The OTH mods weren't found in the game folder, so nothing was removed.`n`nGame folder:`n$game" | Out-Null
+        exit 0
     }
 
-    $head = if ($found) { 'Uninstalled. over the hill is back to normal.' } else { "The mods weren't found in the game folder, so nothing was removed there." }
+    # Which mods to remove: with both installed, ask for each.
+    $wheel = $hasWheel
+    $cockpit = $hasCockpit
+    if ($hasWheel -and $hasCockpit) {
+        $wheel = (Show-Message "Remove the WHEEL MOD (and your wheel setups)?" 'Question' 'YesNo') -eq 'Yes'
+        $cockpit = (Show-Message "Remove the COCKPIT VIEW (and its settings)?" 'Question' 'YesNo') -eq 'Yes'
+        if (-not $wheel -and -not $cockpit) { Show-Message 'Nothing selected, so nothing was removed.' | Out-Null; exit 0 }
+    } else {
+        $what = if ($hasWheel) { 'the wheel mod (and your wheel setups)' } elseif ($hasCockpit) { 'the cockpit view (and its settings)' } else { 'what is left of the OTH mods' }
+        $r = Show-Message "This removes $what from over the hill.`n`nContinue?" 'Question' 'YesNo'
+        if ($r -ne 'Yes') { exit 0 }
+    }
+    $last = ($wheel -or -not $hasWheel) -and ($cockpit -or -not $hasCockpit)
+    Ensure-WriteAccess $game
+
+    if ($bepWheel -or $bepCockpit -or $bepLog) { Uninstall-BepInEx $game $wheel $cockpit $last }
+    if ($melonWheel -or $melonCockpit -or $melonLog) { Uninstall-MelonLoader $game $wheel $cockpit $last }
+    if (-not $last) {
+        foreach ($log in (Join-Path $game 'BepInEx\OthWheel-install.txt'), (Join-Path $game 'UserData\OthWheel-install.txt')) { Update-InstallLog $log $wheel $cockpit }
+    }
+
+    $presetNote = ''
+    if ($wheel) {
+        $presetDir = Get-PitHousePresetDir
+        $preset = if ($presetDir) { Join-Path $presetDir "$PresetId.mzpreset" } else { $null }
+        if ($preset -and (Test-Path $preset)) {
+            $r = Show-Message "Also remove the Pit House profile 'R3 - over the hill (wheel mod)'?" 'Question' 'YesNo'
+            if ($r -eq 'Yes' -and (Wait-PitHouseClosed 'It has to be closed to remove the profile.')) { Remove-Item $preset -Force; $presetNote = "`nThe Pit House profile was removed." }
+        }
+    }
+
+    $removed = @()
+    if ($wheel) { $removed += 'wheel mod' }
+    if ($cockpit) { $removed += 'cockpit view' }
+    $head = if ($last) { 'Uninstalled. over the hill is back to normal.' } else {
+        "Removed: $($removed -join ' + '). The $(if ($wheel) { 'cockpit view' } else { 'wheel mod' }) stays installed."
+    }
     Show-Message ($head + $presetNote +
         "`n`n(If Steam ever reports problems with the game, use Steam > game > Properties > Installed Files > Verify integrity.)") | Out-Null
 }
+
 
 try {
     if ($Uninstall) { Uninstall-Mod } else { Install-Mod }

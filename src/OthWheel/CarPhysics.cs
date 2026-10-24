@@ -222,20 +222,35 @@ internal static class CarPhysics
         float peak = _peakTorque > 1f ? _peakTorque : 150f;
         float torque = Math.Max(_origClutchTorque, Math.Max(1000f, peak * 3f));
         var e = _car.engine; var c = _car.clutch;
-        // The engine's idle control may open the throttle up to maxIdleThrottle (0.8 on the DingDing) to hold idle:
-        // far more than a real idle valve, so the engine fought off every stall uphill. Capped while stalling is on.
-        float idleThrottle = Stalling.Value ? Math.Min(_origIdleThrottle, 0.25f) : _origIdleThrottle;
-        if (_applied && c.type == Engine.ClutchType.FrictionDisc && e.canStall == Stalling.Value && c.maxTorqueTransfer == torque && e.maxIdleThrottle == idleThrottle) return;
+        ApplyIdleThrottle();
+        if (_applied && c.type == Engine.ClutchType.FrictionDisc && e.canStall == Stalling.Value && c.maxTorqueTransfer == torque) return;
         e.canStall = Stalling.Value;
         c.type = Engine.ClutchType.FrictionDisc;
         c.maxTorqueTransfer = torque;
-        e.maxIdleThrottle = idleThrottle;
         _applied = true;
-        Plugin.Info($"real clutch on {_car.name}: bite {Bite.Value} (holds {torque:0} Nm), idle throttle {_origIdleThrottle:0.00} -> {idleThrottle:0.00}, stalling {(Stalling.Value ? "on" : "off")}");
+        Plugin.Info($"real clutch on {_car.name}: bite {Bite.Value} (holds {torque:0} Nm), stalling {(Stalling.Value ? "on" : "off")}");
+    }
+
+    static bool _idleCaught;
+
+    // The engine's idle control may open the throttle up to maxIdleThrottle (0.8 on the DingDing) to hold idle:
+    // far more than a real idle valve, so the engine fought off every stall uphill. Capped while stalling is on,
+    // but only once the engine has caught and reached idle: with the cap during cranking the starter only got it
+    // to ~400 rpm and it died again (v0.11.4 test, every restart failed).
+    static void ApplyIdleThrottle()
+    {
+        var e = _car.engine; var d = _car.data;
+        if (!Stalling.Value || d.Get(Channel.Vehicle, VehicleData.EngineStalled) != 0) _idleCaught = false;
+        else if (!_idleCaught && d.Get(Channel.Vehicle, VehicleData.EngineRpm) / 1000f >= 0.9f * e.idleRpm) _idleCaught = true;
+        float idleThrottle = _idleCaught ? Math.Min(_origIdleThrottle, 0.25f) : _origIdleThrottle;
+        if (e.maxIdleThrottle == idleThrottle) return;
+        e.maxIdleThrottle = idleThrottle;
+        Plugin.Info($"idle throttle {idleThrottle:0.00} ({(_idleCaught ? "engine at idle, capped" : "starting or stalled, the game's own")})");
     }
 
     static void Restore()
     {
+        _idleCaught = false;
         if (!_applied) return;
         _applied = false;
         try

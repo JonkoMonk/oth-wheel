@@ -1,31 +1,58 @@
 MANUAL INSTALL (instead of Install.bat)
 =======================================
 
+@wheel
 Only for people who install mods by hand. Install.bat does all of
 this by itself, plus the game setting and the Moza Pit House profile.
+@end
+@cockpitonly
+Only for people who install mods by hand. Install.bat does all of
+this by itself.
+@end
 
 Use ONE mod loader, not both. Pick the one your other mods use.
+@pack
 OthWheel = wheel mod, OthCockpit = cockpit view: copy one or both.
+@end
 
 MelonLoader (most over the hill mods use it)
   1. Install MelonLoader 0.7.3 or newer into the game folder
      (https://github.com/LavaGang/MelonLoader/releases).
   2. Copy the contents of the MelonLoader folder from here into
      <game folder>\ :
-       Mods\OthWheel.Melon.dll, Mods\OthCockpit.Melon.dll,
+@wheel
+       Mods\OthWheel.Melon.dll
+@end
+@cockpit
+       Mods\OthCockpit.Melon.dll,
        UserData\OthCockpit\models\ (one file per car)
+@end
+@wheel
   Wheel settings and setups: <game folder>\UserData\OthWheel\
+@end
+@cockpit
   Cockpit settings:          <game folder>\UserData\OthCockpit\
+@end
 
 BepInEx (BepInEx 6 for Unity IL2CPP, e.g. be.789)
   1. Install BepInEx 6 (IL2CPP, x64) into the game folder.
   2. Copy the contents of the BepInEx folder from here into
      <game folder>\ :
-       BepInEx\plugins\OthWheel.dll, BepInEx\plugins\OthCockpit.dll,
+@wheel
+       BepInEx\plugins\OthWheel.dll
+@end
+@cockpit
+       BepInEx\plugins\OthCockpit.dll,
        BepInEx\plugins\OthCockpit\models\ (one file per car)
+@end
+@wheel
   Wheel settings: <game folder>\BepInEx\config\jonkomonk.oth.wheel.cfg
   Wheel setups: <game folder>\BepInEx\config\OthWheel\
+@end
+@cockpit
   Cockpit settings: <game folder>\BepInEx\config\jonkomonk.oth.cockpit.cfg
+@end
+@wheel
 
 Install.bat also switches on one hidden game setting
 (DIRECT_INPUT_DEVICES_SUPPORT_ENABLED in the game's settings file).
@@ -33,5 +60,10 @@ The wheel mod was only tested with it on. If something doesn't work
 after a manual install, run Install.bat once.
 
 Don't install another wheel mod (e.g. TrailWheel) at the same time:
-two wheel mods fight over the wheel. Same for another first-person
-camera mod and the cockpit view.
+two wheel mods fight over the wheel.
+@end
+@cockpit
+
+Don't install another first-person camera mod at the same time as
+the cockpit view: two first-person views fight over the camera.
+@end

@@ -1,22 +1,17 @@
 =====================================================================
-  over the hill  -  wheel mod & cockpit view
+  {TITLE}
 =====================================================================
 
-Two mods in one pack. The installer asks which ones you want.
+@pack
+Mods for over the hill in one pack. The installer asks which ones you
+want. Each mod is also available on its own.
 
+@end
+@wheel
 WHEEL MOD: drive over the hill with a steering wheel and pedals:
-steering, throttle, brake, clutch, wheel buttons, and real force
-feedback calculated from the car's tyres (you feel grip, bumps,
+steering, throttle, brake, clutch, H-shifter, wheel buttons, and real
+force feedback calculated from the car's tyres (you feel grip, bumps,
 slides and crashes). Works in single player and in co-op.
-
-COCKPIT VIEW: a first-person view from the driver's seat, with a real
-interior in the game's style: working dials (speed, revs, fuel,
-outside temperature), warning lights, gear display, and a steering
-wheel, pedals and levers that move. Painted parts take your car's
-livery. Works with keyboard, controller or wheel; with the wheel mod
-the cockpit steering wheel turns exactly like your real one. Cars
-with a cockpit so far are listed by the installer; more follow in
-updates.
 
   - Moza R3 (with ES rim and SR-P Lite pedals): works right away,
     everything is already set up.
@@ -25,6 +20,19 @@ updates.
     the pedals and press the buttons you want. Takes about 2 minutes.
     Separate pedals, handbrakes etc. on their own USB plug work too.
 
+@end
+@cockpit
+COCKPIT VIEW (ALPHA): a first-person view from the driver's seat, with
+an interior in the game's style: working dials (speed, revs, fuel,
+outside temperature), warning lights, gear display, and a steering
+wheel, pedals and levers that move. Painted parts take your car's
+livery. Works with keyboard, controller or wheel; with the OTH Wheel
+mod the cockpit steering wheel turns exactly like your real one.
+This is an early version: every car has a cockpit, but many still
+have rough spots (parts in the wrong place, dials hidden behind the
+wheel, ...). Feedback and screenshots are very welcome.
+
+@end
 Windows, Steam version of over the hill.
 
 
@@ -40,21 +48,33 @@ Windows, Steam version of over the hill.
      "More info" > "Run anyway".
    - If Windows asks for administrator permission: click Yes.
 
-The installer asks which parts you want (wheel mod, cockpit view, or
-both), finds the game by itself (any Steam library, any drive) and
-installs them into the game folder, with a mod loader:
+@pack
+The installer asks which parts you want.
+@end
+The installer finds the game by itself (any Steam library, any drive)
+and installs into the game folder, with a mod loader:
   - No mod loader yet: it installs MelonLoader (most other over the
     hill mods use it too, so you can add those later).
-  - MelonLoader already there: it only adds the wheel mod. Your other
-    mods stay as they are.
+  - MelonLoader already there: it only adds the mod. Your other mods
+    stay as they are.
   - BepInEx already there: it uses BepInEx instead.
   - Both found: it stops, because they don't work together.
+@wheel
 For Moza owners it also installs the Pit House profile
-"R3 - over the hill (wheel mod)". No original game files are changed.
+"R3 - over the hill (wheel mod)".
+@end
+No original game files are changed.
+@wheel
 
 Another wheel mod (TrailWheel) installed? The installer offers to move
 it to Mods\disabled\ (not deleted), because two wheel mods fight over
 the wheel.
+@end
+@single
+
+Installing another OTH mod later (e.g. the cockpit view or the wheel
+mod) with its own Install.bat keeps what's already installed.
+@end
 
 Prefer to install by hand? See the "Manual install" folder.
 
@@ -63,10 +83,12 @@ Prefer to install by hand? See the "Manual install" folder.
   FIRST START  (important!)
 ---------------------------------------------------------------------
 
+@wheel
 1. Plug in the wheel and start its driver software (Moza Pit House,
    Logitech G HUB, Thrustmaster / Fanatec control panel). Moza: select
    the profile "R3 - over the hill (wheel mod)".
    Set the rotation to 540 degrees if you can: that feels best here.
+@end
 2. Start the game from Steam.
    The FIRST start takes 1-2 minutes before anything shows up. The
    mod loader prepares itself (and downloads a few files once, so
@@ -75,15 +97,21 @@ Prefer to install by hand? See the "Manual install" folder.
    MelonLoader's log; it's normal. MelonLoader also needs Microsoft
    .NET 6: if it isn't on your PC, MelonLoader installs it on the
    first start (click Yes if Windows asks for permission).
+@wheel
 3. Keep the game window in front while it starts (don't alt-tab).
 4. Get into the car.
    - Moza R3: just drive. After a few seconds the top-left corner
      shows "Wheel mod ... active: ..., force feedback on".
    - Other wheels: the setup wizard opens by itself. Follow it.
+@end
+@cockpit
+5. Cockpit view: see COCKPIT VIEW below.
+@end
 
 Later starts are as fast as normal.
 
 
+@wheel
 ---------------------------------------------------------------------
   THE SETUP WIZARD  (F3)
 ---------------------------------------------------------------------
@@ -154,7 +182,13 @@ id and your axis/button choices. Nothing is ever sent automatically.
 Other wheels: you choose in the wizard. Keyboard and gamepad keep
 working as normal.
 
+When you press a wheel button, its name and action show briefly in
+the top-left corner. Press F8 to turn that display off (and F8 again
+to turn it back on). The choice is remembered.
 
+
+@end
+@cockpit
 ---------------------------------------------------------------------
   COCKPIT VIEW
 ---------------------------------------------------------------------
@@ -176,11 +210,9 @@ Settings (seat, field of view, look speed, leaning into corners):
   MelonLoader:  <game folder>\UserData\OthCockpit\jonkomonk.oth.cockpit.cfg
   BepInEx:      <game folder>\BepInEx\config\jonkomonk.oth.cockpit.cfg
 
-When you press a wheel button, its name and action show briefly in
-the top-left corner. Press F8 to turn that display off (and F8 again
-to turn it back on). The choice is remembered.
 
-
+@end
+@wheel
 ---------------------------------------------------------------------
   FORCE FEEDBACK
 ---------------------------------------------------------------------
@@ -224,10 +256,12 @@ Your wheel setups (from the wizard) are in
 Delete the settings file to go back to the default settings.
 
 
+@end
 ---------------------------------------------------------------------
   PROBLEMS?
 ---------------------------------------------------------------------
 
+@wheel
 "NO wheel found" message, or the wheel does nothing
   - Is the wheel plugged in and its driver software running? Then
     restart the game and keep its window in front while it starts.
@@ -245,6 +279,7 @@ full lock)
   - Run the force feedback test again (F3 > 3), with your hands off
     the wheel when it asks.
 
+@end
 The game doesn't start / crashes at start after installing
   - Run Uninstall.bat. The game is then back to normal.
   - Antivirus: some antivirus programs dislike "version.dll"
@@ -255,11 +290,15 @@ The game doesn't start / crashes at start after installing
     put it there, then run Install.bat again.
 
 Camera mods (Rudimentary FPP, BonnetCam)
+@wheel
   - Their bonnet / first-person views open by zooming in past the
     closest view. The wheel's zoom buttons (Moza: S2 / HOME) work for
     that too.
-  - Don't use them together with this pack's cockpit view: two
-    first-person views fight over the camera.
+@end
+@cockpit
+  - Don't use them together with the cockpit view: two first-person
+    views fight over the camera.
+@end
 
 After a game update the mod stops working
   - The game update may have changed things the mod relies on.
@@ -267,19 +306,33 @@ After a game update the mod stops working
     version of the mod.
 
 Something else
+@wheel
   - F3 > 6 saves a support report on your desktop (a zip with the
     logs, your setup and the device list). Send it to the mod's
     author together with a short description.
+@end
+@cockpitonly
+  - Send the mod's author a short description, and the file
+    MelonLoader\Latest.log (BepInEx: BepInEx\LogOutput.log) from the
+    game folder.
+@end
 
 
 ---------------------------------------------------------------------
   UNINSTALL
 ---------------------------------------------------------------------
 
-Close the game, double-click Uninstall.bat. It removes the mod and
-your wheel setups, and, if you want, the Pit House profile. The mod
-loader:
+Close the game, double-click Uninstall.bat. If more than one OTH mod
+is installed, it asks which ones to remove. It removes their files
+and settings.
+@wheel
+Wheel mod: also your wheel setups and, if you want, the Pit House
+profile.
+@end
+When the last OTH mod is removed, the mod loader goes too:
   - MelonLoader: removed only if this installer put it there (it asks
     first if other mods use it). A MelonLoader you had before stays.
   - BepInEx: removed too (it asks first if other mods use it).
+@wheel
 If the installer had moved TrailWheel aside, it offers to move it back.
+@end
