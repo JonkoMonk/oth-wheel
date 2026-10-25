@@ -43,6 +43,20 @@ $BepItems = @('BepInEx', 'dotnet', 'winhttp.dll', 'doorstop_config.ini', '.doors
 $MelonItems = @('MelonLoader', 'version.dll', 'Mods', 'Plugins', 'UserData', 'UserLibs')
 $MelonTested = [version]'0.7.3'
 $MelonMinimum = [version]'0.7.0'
+# The mod loaders aren't in our zips (Nexus quarantines zips with executables or archives inside): the
+# tested builds are downloaded from their official sites and must match these SHA-256 hashes exactly.
+$Loaders = @{
+    MelonLoader = @{
+        Name = 'MelonLoader 0.7.3'; File = 'MelonLoader.x64-0.7.3.zip'; Pattern = 'MelonLoader*.zip'
+        Url = 'https://github.com/LavaGang/MelonLoader/releases/download/v0.7.3/MelonLoader.x64.zip'
+        Sha256 = '5B2B2F3D1CD42B59EC886C5BDC2663EDAE87A0097A4F4A8F58C0965A99DDA416'
+    }
+    BepInEx = @{
+        Name = 'BepInEx 6.0.0-be.789'; File = 'BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.789.zip'; Pattern = 'BepInEx-*.zip'
+        Url = 'https://builds.bepinex.dev/projects/bepinex_be/789/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.789%2B6cea286.zip'
+        Sha256 = '29519614D0121A3EEFC9DF6D61436F0C09A2C5F85B0A7D92559A135CE3055EB1'
+    }
+}
 
 # A hidden owner window keeps every pop-up in front of other windows.
 $Owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; Opacity = 0 }
@@ -247,11 +261,34 @@ function Enable-GameDirectInput {
 
 # --- install --------------------------------------------------------------------------------------
 
+# Path of the loader's zip: one in the files folder (older packages, or downloaded by hand for a PC
+# without internet) or the official download, cached in %TEMP%.
+function Get-LoaderZip([string]$kind) {
+    $l = $Loaders[$kind]
+    $local = Get-ChildItem -Path $FilesDir -Filter $l.Pattern -File | Select-Object -First 1
+    if ($local) { return $local.FullName }
+    $zip = Join-Path $env:TEMP $l.File
+    if ((Test-Path $zip) -and (Get-FileHash $zip -Algorithm SHA256).Hash -eq $l.Sha256) { return $zip }
+    $manual = "You can also download it yourself:`n$($l.Url)`nPut that zip in the installer's ""files"" folder and run the installer again."
+    Write-Host "Downloading $($l.Name) from $(([uri]$l.Url).Host) ..."
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow
+        Invoke-WebRequest -Uri $l.Url -OutFile $zip -UseBasicParsing
+    } catch {
+        Fail "Downloading the mod loader ($($l.Name)) failed. Is this PC online?`n$($_.Exception.Message)`n`n$manual"
+    }
+    if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $l.Sha256) {
+        Remove-Item $zip -Force
+        Fail "The downloaded $($l.Name) isn't the expected file, so it wasn't used.`n`n$manual"
+    }
+    return $zip
+}
+
 function Install-ForBepInEx([string]$game, [bool]$wheel) {
-    $loaderZip = Get-ChildItem -Path $FilesDir -Filter 'BepInEx-*.zip' | Select-Object -First 1
-    if (-not $loaderZip) { Fail 'The BepInEx zip is missing from the installer folder.' }
+    $loaderZip = Get-LoaderZip 'BepInEx'
     # Update BepInEx to the tested build. Existing plugins and settings of other mods are kept.
-    try { Expand-Archive -Path $loaderZip.FullName -DestinationPath $game -Force } catch { Fail "Copying the mod loader failed:`n$($_.Exception.Message)" }
+    try { Expand-Archive -Path $loaderZip -DestinationPath $game -Force } catch { Fail "Copying the mod loader failed:`n$($_.Exception.Message)" }
 
     $config = Join-Path $game 'BepInEx\config'
     $plugins = Join-Path $game 'BepInEx\plugins'
@@ -277,8 +314,6 @@ function Install-ForBepInEx([string]$game, [bool]$wheel) {
 }
 
 function Install-ForMelonLoader([string]$game, [bool]$hadLoader, [bool]$wheel) {
-    $loaderZip = Get-ChildItem -Path $FilesDir -Filter 'MelonLoader*.zip' | Select-Object -First 1
-    if (-not $loaderZip) { Fail 'The MelonLoader zip is missing from the installer folder.' }
     $log = Join-Path $game 'UserData\OthWheel-install.txt'
     $before = Read-InstallLog $log
     $installedByUs = ($before['MelonLoader installed by this installer'] -eq 'True') -or -not $hadLoader
@@ -289,10 +324,12 @@ function Install-ForMelonLoader([string]$game, [bool]$hadLoader, [bool]$wheel) {
             $r = Show-Message ("MelonLoader $v is installed, but the wheel mod needs version $MelonMinimum or newer (tested with $MelonTested).`n`n" +
                 "Update MelonLoader to $MelonTested now? Your other mods and their settings are kept.") 'Question' 'YesNo'
             if ($r -ne 'Yes') { Fail 'MelonLoader is too old for the wheel mod.' }
-            try { Expand-Archive -Path $loaderZip.FullName -DestinationPath $game -Force } catch { Fail "Updating MelonLoader failed:`n$($_.Exception.Message)" }
+            $loaderZip = Get-LoaderZip 'MelonLoader'
+            try { Expand-Archive -Path $loaderZip -DestinationPath $game -Force } catch { Fail "Updating MelonLoader failed:`n$($_.Exception.Message)" }
         }
     } else {
-        try { Expand-Archive -Path $loaderZip.FullName -DestinationPath $game -Force } catch { Fail "Copying the mod loader failed:`n$($_.Exception.Message)" }
+        $loaderZip = Get-LoaderZip 'MelonLoader'
+        try { Expand-Archive -Path $loaderZip -DestinationPath $game -Force } catch { Fail "Copying the mod loader failed:`n$($_.Exception.Message)" }
     }
 
     $mods = Join-Path $game 'Mods'

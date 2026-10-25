@@ -8,4 +8,5 @@ if not exist "%~dp0files\installer.ps1" (
   pause
   exit /b 1
 )
-start "" powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0files\installer.ps1" -Uninstall
+echo  The installer runs in pop-up windows. This window closes by itself.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0files\installer.ps1" -Uninstall

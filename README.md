@@ -35,4 +35,4 @@ Windows, .NET SDK 8 (target net6.0). The projects reference the game's generated
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). MelonLoader (Apache-2.0) and BepInEx (LGPL-2.1) are bundled with their own licences.
+MIT — see [LICENSE](LICENSE). MelonLoader (Apache-2.0) and BepInEx (LGPL-2.1) are not included: the installer downloads the official release (MelonLoader from its GitHub page, BepInEx from bepinex.dev) and only uses it if its SHA-256 matches.

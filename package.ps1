@@ -5,8 +5,8 @@
 # Every zip has the same installer: it offers the parts that are in its zip and keeps what an earlier
 # install put there. Works while the game is running (doesn't touch the installed plugins).
 # The cockpit mod is ..\..\OTH cockpit mod (DLLs rebuilt by its build.ps1; car models from its last
-# model build, assets_v2 if it exists). Each zip has both loaders, their licences, our LICENSE.txt and a
-# "Manual install" folder.
+# model build, assets_v2 if it exists). Each zip has our LICENSE.txt and a "Manual install" folder. No mod
+# loader inside (Nexus quarantines zips with archives inside): installer.ps1 downloads the official one.
 # Usage: powershell -File package.ps1 [-Parts Wheel,Cockpit,Pack]   (default: all three)
 param(
     [ValidateSet('Wheel', 'Cockpit', 'Pack')][string[]]$Parts = @('Wheel', 'Cockpit', 'Pack')
@@ -14,11 +14,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $work = Join-Path $env:USERPROFILE 'dev\oth-wheelmod-build'
-$downloads = Join-Path $work 'downloads'
-$bepZip = Join-Path $downloads 'BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.789.zip'
-$bepLicense = Join-Path $downloads 'BepInEx-LICENSE.txt'
-$melonZip = Join-Path $downloads 'MelonLoader.x64-0.7.3.zip'
-foreach ($f in $bepZip, $bepLicense, $melonZip) { if (-not (Test-Path $f)) { throw "Missing: $f" } }
 $CockpitStage = 'alpha'
 $needWheel = ($Parts -contains 'Wheel') -or ($Parts -contains 'Pack')
 $needCockpit = ($Parts -contains 'Cockpit') -or ($Parts -contains 'Pack')
@@ -91,14 +86,12 @@ function New-Package([string]$name, [bool]$wheel, [bool]$cockpit) {
     # Empty the folder instead of deleting it: an Explorer window open on it would block the delete.
     if (Test-Path $stage) { Get-ChildItem $stage -Force | Remove-Item -Recurse -Force }
     $files = Join-Path $stage 'files'
-    New-Item -ItemType Directory -Force -Path $files, (Join-Path $files 'licenses') | Out-Null
+    New-Item -ItemType Directory -Force -Path $files | Out-Null
 
     foreach ($f in 'Install.bat', 'Uninstall.bat') { Copy-Text (Join-Path $src $f) (Join-Path $stage $f) }
     Copy-Text (Join-Path $PSScriptRoot 'LICENSE') (Join-Path $stage 'LICENSE.txt')
     Write-Text (Join-Path $src 'README.txt') (Join-Path $stage 'README.txt') $wheel $cockpit $title
-    Copy-Item (Join-Path $src 'files\installer.ps1'), (Join-Path $src 'files\BepInEx.cfg'), $bepZip, $melonZip $files
-    # MelonLoader's zip carries its own LICENSE/NOTICE (MelonLoader\Documentation); BepInEx's zip has none.
-    Copy-Item $bepLicense (Join-Path $files 'licenses\BepInEx-LICENSE.txt')
+    Copy-Item (Join-Path $src 'files\installer.ps1'), (Join-Path $src 'files\BepInEx.cfg') $files
     Set-Content -Path (Join-Path $files 'package.txt') -Value ($titles -join ' + ') -Encoding ASCII
 
     $manual = Join-Path $stage 'Manual install'
@@ -125,9 +118,8 @@ function New-Package([string]$name, [bool]$wheel, [bool]$cockpit) {
     }
     Write-Text (Join-Path $src 'Manual install.txt') (Join-Path $manual 'README.txt') $wheel $cockpit $title
 
-    # Never ship the Windows account name (build paths, notes). The loader zips are third-party downloads.
-    $thirdParty = @((Join-Path $files (Split-Path $bepZip -Leaf)), (Join-Path $files (Split-Path $melonZip -Leaf)))
-    foreach ($file in Get-ChildItem $stage -Recurse -File | Where-Object { $_.FullName -notin $thirdParty }) {
+    # Never ship the Windows account name (build paths, notes).
+    foreach ($file in Get-ChildItem $stage -Recurse -File) {
         $b = [IO.File]::ReadAllBytes($file.FullName)
         # As 8-bit text and as UTF-16 at both byte alignments.
         foreach ($t in [Text.Encoding]::ASCII.GetString($b), [Text.Encoding]::Unicode.GetString($b), [Text.Encoding]::Unicode.GetString($b, 1, [Math]::Max(0, $b.Length - 1))) {
