@@ -56,11 +56,14 @@ The installer asks which parts you want.
 @end
 The installer finds the game by itself (any Steam library, any drive)
 and installs into the game folder, with a mod loader:
-  - No mod loader yet: it installs MelonLoader (most other over the
-    hill mods use it too, so you can add those later).
+  - No mod loader yet: it downloads MelonLoader 0.7.3 from its
+    official GitHub page (so be online), checks it's exactly the
+    official file, and installs it (most other over the hill mods use
+    it too, so you can add those later).
   - MelonLoader already there: it only adds the mod. Your other mods
     stay as they are.
-  - BepInEx already there: it uses BepInEx instead.
+  - BepInEx already there: it uses BepInEx instead (and updates it to
+    the tested build, downloaded from bepinex.dev).
   - Both found: it stops, because they don't work together.
 @wheel
 For Moza owners it also installs the Pit House profile
