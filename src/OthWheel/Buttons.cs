@@ -32,10 +32,22 @@ internal static class Buttons
         public Vector2 Camera;
         // Zoom actions: +1 = zoom in, -1 = zoom out, while held.
         public int Zoom;
+        // The keys this press sent (they depend on the screen, see KeysNow), released with the button.
+        public ushort[] PressedVk = Array.Empty<ushort>();
+        public float PressedAt, RepeatAt;
+        public bool HoldFired;
     }
 
     static readonly List<Action> _actions = new();
-    public static ConfigEntry<bool> Enabled, ShowButtonNumbers, ReplaceGameWheelButtons, CameraInvertX, CameraInvertY;
+    static Action _ok, _back, _map;
+    public static ConfigEntry<bool> Enabled, ShowButtonNumbers, ReplaceGameWheelButtons, CameraInvertX, CameraInvertY, QuickMenuOnMapHold;
+    // Keys for the OK / back buttons (A / B by default) outside driving, per screen ([MenuKeys]).
+    static ConfigEntry<string> _menuOkKeys, _menuBackKeys, _photoOkKeys, _mapOkKeys, _musicOkKeys;
+    static ushort[] _menuOk = Array.Empty<ushort>(), _menuBack = Array.Empty<ushort>(), _photoOk = Array.Empty<ushort>(),
+                    _mapOk = Array.Empty<ushort>(), _musicOk = Array.Empty<ushort>();
+    // The map screen moves with W/A/S/D (the game binds no arrow keys there).
+    static readonly ushort[] MapUp = { 0x57 }, MapDown = { 0x53 }, MapLeft = { 0x41 }, MapRight = { 0x44 };
+    static readonly ushort[] VkBackspace = { 0x08 };
     public static ConfigEntry<float> CameraSpeed, ZoomSpeed;
     public static ConfigEntry<string> DisplayToggleKey;
     static ushort[] _displayToggleVk = Array.Empty<ushort>();
@@ -75,11 +87,11 @@ internal static class Buttons
         Add(cfg, "GearDown", "LeftCtrl", "Shift down");
         Add(cfg, "HiLo", "Tab", "High / low range");
         Add(cfg, "WinchAttach", "O", "Winch: attach / pull");
-        Add(cfg, "WinchRelease", "P", "Winch: release");
+        Add(cfg, "WinchRelease", "P", "Winch: release, back in menus");
         Add(cfg, "WinchExtendAndInteract", "L+Enter", "Winch: extend / interact, OK in menus");
         Add(cfg, "Headlights", "H", "Headlights");
         Add(cfg, "ParkingBrake", "Space", "Parking brake");
-        Add(cfg, "Map", "M", "Map");
+        Add(cfg, "Map", "M", "Map (hold: quick action wheel)");
         Add(cfg, "Pause", "Escape", "Pause menu / back");
         Add(cfg, "Horn", "Z", "Horn");
         Add(cfg, "Ignition", "I", "Engine on / off");
@@ -93,6 +105,20 @@ internal static class Buttons
         Add(cfg, "ZoomOut", "", "Camera zoom out (hold)").Zoom = -1;
         _actions.Add(new Action { Name = "CycleFfbProfile", Description = "Force feedback profile Soft / Normal / Realistic / Heavy", OnPress = Ffb.CycleProfile });
         _actions.Add(new Action { Name = "CockpitView", Description = "Cockpit (first person) view on / off (OTH Cockpit mod)", OnPress = CockpitLink.RequestToggle });
+        _actions.Add(new Action { Name = "CameraSide", Description = "Smart camera: left / right side of the car", OnPress = SmartCamera.ToggleSide });
+        _actions.Add(new Action { Name = "QuickMenu", Description = "Quick action wheel (game key Q): D-pad chooses, A = OK, B = close", OnPress = GameMenus.ToggleQuickMenu });
+        _ok = _actions.First(a => a.Name == "WinchExtendAndInteract");
+        _back = _actions.First(a => a.Name == "WinchRelease");
+        _map = _actions.First(a => a.Name == "Map");
+
+        QuickMenuOnMapHold = cfg.Bind("Buttons", "QuickMenuOnMapHold", true,
+            "Holding the Map button for half a second opens the quick action wheel (game key Q); a short press still opens the map. " +
+            "Only while no wheel button is set for QuickMenu.");
+        _menuOkKeys = cfg.Bind("MenuKeys", "OK", "Enter", "Key(s) the OK button (WinchExtendAndInteract, A) presses in menus and on the quick action wheel.");
+        _menuBackKeys = cfg.Bind("MenuKeys", "Back", "Escape", "Key(s) the back button (WinchRelease, B) presses in menus, photo mode, the map and the music player.");
+        _photoOkKeys = cfg.Bind("MenuKeys", "PhotoModeOK", "LeftMouse", "Key(s) the OK button presses in photo mode (take the photo).");
+        _mapOkKeys = cfg.Bind("MenuKeys", "MapOK", "LeftMouse", "Key(s) the OK button presses on the map screen.");
+        _musicOkKeys = cfg.Bind("MenuKeys", "MusicOK", "E", "Key(s) the OK button presses in the music player (play / pause).");
 
         Reparse();
     }
@@ -112,6 +138,11 @@ internal static class Buttons
     {
         ReleaseAll();
         foreach (var a in _actions) if (a.Keys != null) a.Vk = Win32.ParseKeys(a.Keys.Value, a.Name);
+        _menuOk = Win32.ParseKeys(_menuOkKeys.Value, "MenuKeys.OK");
+        _menuBack = Win32.ParseKeys(_menuBackKeys.Value, "MenuKeys.Back");
+        _photoOk = Win32.ParseKeys(_photoOkKeys.Value, "MenuKeys.PhotoModeOK");
+        _mapOk = Win32.ParseKeys(_mapOkKeys.Value, "MenuKeys.MapOK");
+        _musicOk = Win32.ParseKeys(_musicOkKeys.Value, "MenuKeys.MusicOK");
         _displayToggleVk = Win32.ParseKeys(DisplayToggleKey.Value, DisplayToggleKey.Definition.Key);
     }
 
@@ -196,23 +227,126 @@ internal static class Buttons
             }
             bool held = HeldFor(dev, bind?.Button ?? -1, now, ReleaseDelay);
             if (held) camera += act.Camera;
+            if (act == _map && MapHoldOpensQuickMenu(profile)) { MapOrQuickMenu(act, held, now); continue; }
+            // On the quick action wheel and the winch point picker the D-pad steps through the items
+            // (a press, then repeats while held).
+            bool quick = GameMenus.Now == GameMenus.Context.QuickMenu, winch = !quick && GameMenus.WinchPicking;
+            if (act.Camera != Vector2.zero && held && (quick || winch))
+            {
+                if (!act.Down) act.RepeatAt = now + 0.4f;
+                if (!act.Down || now >= act.RepeatAt)
+                {
+                    if (act.Down) act.RepeatAt = now + 0.25f;
+                    if (quick) GameMenus.QuickMenuDpad(act.Camera);
+                    else GameMenus.WinchDpad(act.Camera);
+                }
+            }
             if (held == act.Down) continue;
             act.Down = held;
             if (act.OnPress != null)
             {
-                if (held) { LastText = act.OnPress(); LastTime = now; AlwaysShowUntil = now + 3f; }
+                if (held) Show(act.OnPress(), now);
                 continue;
             }
-            foreach (var vk in act.Vk) Win32.Key(vk, held);
+            if (held)
+            {
+                act.PressedVk = KeysNow(act);
+                foreach (var vk in act.PressedVk) Win32.Key(vk, true);
+            }
+            else
+            {
+                foreach (var vk in act.PressedVk) Win32.Key(vk, false);
+                act.PressedVk = Array.Empty<ushort>();
+            }
         }
 
         // The cockpit mod looks around with these directly (camera actions: x right, y down).
         // Not while the settings menu is open: the D-pad steers the menu then.
         if (Menu.IsOpen) camera = Vector2.zero;
-        CockpitLink.LookX = Mathf.Clamp(camera.x, -1f, 1f);
-        CockpitLink.LookY = Mathf.Clamp(-camera.y, -1f, 1f);
+        HeldZoom = Math.Sign(zoom);
+        ScrollInMenus(HeldZoom, now);
+        var look = CarCamera ? camera : Vector2.zero;
+        CockpitLink.LookX = Mathf.Clamp(look.x, -1f, 1f);
+        CockpitLink.LookY = Mathf.Clamp(-look.y, -1f, 1f);
         MoveCamera(camera, now, dt);
         _zoomDir = Math.Sign(zoom);
+    }
+
+    static void Show(string text, float now)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        LastText = text; LastTime = now; AlwaysShowUntil = now + 3f;
+    }
+
+    // The car camera (D-pad look, zoom, cockpit look) only while the game is in driving controls.
+    static bool CarCamera => GameMenus.Now is GameMenus.Context.Driving or GameMenus.Context.Unknown;
+
+    // What a button presses depends on the screen: B (back) is Escape in menus but releases the winch while
+    // driving; A (OK) is Enter in menus, the left mouse button in photo mode and on the map, E in the music
+    // player; the D-pad is W/A/S/D on the map and only picks items on the quick action wheel.
+    static ushort[] KeysNow(Action a)
+    {
+        var c = GameMenus.Now;
+        if (c == GameMenus.Context.Unknown && Cursor.visible) c = GameMenus.Context.Menu;   // no input map: guess
+        if (a == _back && Menu.IsOpen) return VkBackspace;   // the mod's own settings menu
+        if (a == _ok || a == _back)
+        {
+            bool ok = a == _ok;
+            switch (c)
+            {
+                case GameMenus.Context.Menu:
+                case GameMenus.Context.QuickMenu: return ok ? _menuOk : _menuBack;
+                case GameMenus.Context.PhotoCamera: return ok ? _photoOk : _menuBack;
+                case GameMenus.Context.MapScreen: return ok ? _mapOk : _menuBack;
+                case GameMenus.Context.Music: return ok ? _musicOk : _menuBack;
+            }
+            return a.Vk;
+        }
+        if (a.Camera != Vector2.zero)
+        {
+            if (c is GameMenus.Context.QuickMenu or GameMenus.Context.PhotoCamera || GameMenus.WinchPicking) return Array.Empty<ushort>();
+            if (c == GameMenus.Context.MapScreen)
+                return a.Camera.y < 0f ? MapUp : a.Camera.y > 0f ? MapDown : a.Camera.x < 0f ? MapLeft : MapRight;
+        }
+        return a.Vk;
+    }
+
+    // Map button: a short press opens the map (on release), held for half a second it opens the quick action wheel.
+    const float MapHoldTime = 0.5f;
+
+    static bool MapHoldOpensQuickMenu(WheelProfile profile) =>
+        QuickMenuOnMapHold.Value && !profile.Buttons.ContainsKey("QuickMenu");
+
+    static void MapOrQuickMenu(Action act, bool held, float now)
+    {
+        if (held && !act.Down) { act.Down = true; act.PressedAt = now; act.HoldFired = false; return; }
+        if (held && act.Down && !act.HoldFired && now - act.PressedAt >= MapHoldTime)
+        {
+            act.HoldFired = true;
+            Show(GameMenus.ToggleQuickMenu(), now);
+            return;
+        }
+        if (!held && act.Down)
+        {
+            act.Down = false;
+            if (!act.HoldFired) TapAction(act.Name, now);
+        }
+    }
+
+    // Zoom buttons held this frame (+1 in, -1 out); the map zooms with it smoothly (GameMenus.AfterMapUpdate).
+    public static int HeldZoom;
+
+    // Zoom buttons in photo mode (and on the map if its smooth zoom isn't available): mouse wheel notches
+    // while held (those screens zoom with the wheel).
+    static float _nextNotch;
+
+    static void ScrollInMenus(int dir, float now)
+    {
+        if (dir == 0 || GameMenus.Now is not (GameMenus.Context.MapScreen or GameMenus.Context.PhotoCamera)) return;
+        if (GameMenus.MapZoomReady) return;
+        if (now < _nextNotch) return;
+        _nextNotch = now + 0.1f;
+        Win32.MouseWheel(dir);
     }
 
     // "BOX → ResetCar" in the top-left on every press (when ShowButtonNumbers is on), and in the log.
@@ -333,6 +467,7 @@ internal static class Buttons
         try
         {
             FindZoomActions();
+            SmartCamera.SetControls(__instance);
             float now = Time.unscaledTime, t = __instance.targetZoomMultiplier;
             float lo = Mathf.Min(__instance.minZoom, __instance.maxZoom), hi = Mathf.Max(__instance.minZoom, __instance.maxZoom);
             if (!_zoomLogged)
@@ -341,7 +476,7 @@ internal static class Buttons
                 Plugin.Info($"camera zoom: min={__instance.minZoom} max={__instance.maxZoom} speed={__instance.zoomSpeed} target={t}");
             }
 
-            if (_zoomDir == 0 || !Driving(now)) return;
+            if (_zoomDir == 0 || !Driving(now) || !CarCamera) return;
             float range = hi > lo && hi - lo < 1e6f ? hi - lo : 1f;
             float next = t + _zoomDir * ZoomInSign * ZoomSpeed.Value * range * Time.unscaledDeltaTime;
             __instance.targetZoomMultiplier = hi > lo ? Mathf.Clamp(next, lo, hi) : next;
@@ -349,13 +484,38 @@ internal static class Buttons
         catch (Exception e) { Plugin.ErrorOnce("zoom hook", e); }
     }
 
+    // Photo mode look: starts at 1.2 x CameraSpeed, 4x that after 1.5 s held (0.5 x felt way too slow).
+    const float PhotoLookSpeed = 1.2f, PhotoLookMaxFactor = 4f, PhotoLookRampTime = 1.5f;
+    static float _photoLookFor;
+
     // Only while driving with the mouse cursor hidden; in menus the camera buttons just send their arrow keys.
     // In the cockpit view the cockpit mod reads the buttons itself (CockpitLink.LookX/Y), so no simulated mouse.
     static void MoveCamera(Vector2 dir, float now, float dt)
     {
-        bool driving = Driving(now);
+        // Photo mode's free camera looks around with plain mouse movement (no right button), speeding up
+        // while the D-pad is held.
+        if (GameMenus.Now != GameMenus.Context.PhotoCamera || dir == Vector2.zero) _photoLookFor = 0f;
+        if (GameMenus.Now == GameMenus.Context.PhotoCamera && dir != Vector2.zero)
+        {
+            if (_rightMouseDown) { Win32.MouseRight(false); _rightMouseDown = false; }
+            SmartCamera.Dpad = Vector2.zero;
+            _photoLookFor += dt;
+            float speed = PhotoLookSpeed * CameraSpeed.Value * Mathf.Lerp(1f, PhotoLookMaxFactor, Mathf.Clamp01(_photoLookFor / PhotoLookRampTime));
+            _mouseX += dir.x * speed * dt;
+            _mouseY += dir.y * speed * dt;
+            int px = (int)_mouseX, py = (int)_mouseY;
+            _mouseX -= px; _mouseY -= py;
+            Win32.MouseMove(px, py);
+            return;
+        }
+        bool driving = Driving(now) && CarCamera;
+        // With the smart camera on, the camera buttons turn the game camera directly (SmartCamera.Dpad).
+        var smart = driving && !CockpitLink.CockpitActive && !Menu.IsOpen ? dir : Vector2.zero;
+        if (CameraInvertX.Value) smart.x = -smart.x;
+        if (CameraInvertY.Value) smart.y = -smart.y;
+        SmartCamera.Dpad = SmartCamera.HandlesDpad ? smart : Vector2.zero;
         // While the settings menu is open the D-pad only steers the menu (through its arrow keys).
-        if (!driving || dir == Vector2.zero || CockpitLink.CockpitActive || Menu.IsOpen)
+        if (!driving || dir == Vector2.zero || CockpitLink.CockpitActive || Menu.IsOpen || SmartCamera.HandlesDpad)
         {
             if (_rightMouseDown) { Win32.MouseRight(false); _rightMouseDown = false; }
             _mouseX = _mouseY = 0f;
@@ -404,11 +564,13 @@ internal static class Buttons
     public static void ReleaseAll()
     {
         TapRelease(float.MaxValue);
+        GameMenus.ReleaseAll();
         foreach (var act in _actions)
         {
             if (!act.Down) continue;
             act.Down = false;
-            foreach (var vk in act.Vk) Win32.Key(vk, false);
+            foreach (var vk in act.PressedVk) Win32.Key(vk, false);
+            act.PressedVk = Array.Empty<ushort>();
         }
         if (_rightMouseDown) { Win32.MouseRight(false); _rightMouseDown = false; }
     }

@@ -23,7 +23,9 @@ internal static class Win32
     struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
 
     const uint INPUT_MOUSE = 0, INPUT_KEYBOARD = 1, KEYEVENTF_EXTENDEDKEY = 0x1, KEYEVENTF_KEYUP = 0x2;
-    const uint MOUSEEVENTF_MOVE = 0x1, MOUSEEVENTF_RIGHTDOWN = 0x8, MOUSEEVENTF_RIGHTUP = 0x10, MOUSEEVENTF_WHEEL = 0x800;
+    const uint MOUSEEVENTF_MOVE = 0x1, MOUSEEVENTF_LEFTDOWN = 0x2, MOUSEEVENTF_LEFTUP = 0x4, MOUSEEVENTF_RIGHTDOWN = 0x8, MOUSEEVENTF_RIGHTUP = 0x10, MOUSEEVENTF_WHEEL = 0x800;
+    // Key name "LeftMouse" (photo mode takes the picture and the map sets a marker with the left mouse button).
+    public const ushort VK_LBUTTON = 0x01;
 
     // One mouse wheel notch (120 units); positive = scroll up (the game's camera zoom in).
     public static void MouseWheel(int notches) => Mouse(new MOUSEINPUT { mouseData = unchecked((uint)(notches * 120)), dwFlags = MOUSEEVENTF_WHEEL });
@@ -76,6 +78,26 @@ internal static class Win32
         return found;
     }
 
+    [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hWnd, out RECT r);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
+
+    // The middle of the game window's picture, in screen pixels (null if the window isn't found).
+    public static (int X, int Y)? GameWindowCentre()
+    {
+        var h = GetForegroundWindow();
+        if (h == IntPtr.Zero || GetWindowThreadProcessId(h, out var pid) == 0 || pid != _pid || !GetClientRect(h, out var r)) return null;
+        var p = new POINT { X = (r.Right - r.Left) / 2, Y = (r.Bottom - r.Top) / 2 };
+        return ClientToScreen(h, ref p) ? (p.X, p.Y) : null;
+    }
+
+    public static void MoveCursor(int x, int y) => SetCursorPos(x, y);
+
+    public static (int X, int Y) CursorPos() => GetCursorPos(out var p) ? (p.X, p.Y) : (0, 0);
+
     public static bool GameHasFocus()
     {
         var h = GetForegroundWindow();
@@ -84,6 +106,7 @@ internal static class Win32
 
     public static void Key(ushort vk, bool down)
     {
+        if (vk == VK_LBUTTON) { Mouse(new MOUSEINPUT { dwFlags = down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP }); return; }
         uint flags = down ? 0u : KEYEVENTF_KEYUP;
         if (IsExtended(vk)) flags |= KEYEVENTF_EXTENDEDKEY;
         var input = new INPUT
@@ -108,6 +131,7 @@ internal static class Win32
             ["LeftAlt"] = 0xA4, ["RightAlt"] = 0xA5,
             ["UpArrow"] = 0x26, ["DownArrow"] = 0x28, ["LeftArrow"] = 0x25, ["RightArrow"] = 0x27,
             ["PageUp"] = 0x21, ["PageDown"] = 0x22, ["Home"] = 0x24, ["End"] = 0x23, ["Insert"] = 0x2D, ["Delete"] = 0x2E,
+            ["LeftMouse"] = VK_LBUTTON,
         };
         for (char c = 'A'; c <= 'Z'; c++) d[c.ToString()] = c;
         for (char c = '0'; c <= '9'; c++) d[c.ToString()] = c;

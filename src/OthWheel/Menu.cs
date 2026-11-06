@@ -21,7 +21,7 @@ internal static class Menu
         public Action Open;          // right arrow on a section or command
     }
 
-    enum Page { Main, Ffb, Steering, Clutch, Buttons }
+    enum Page { Main, Ffb, Steering, Clutch, Camera, Buttons }
 
     static bool _open;
     static Page _page;
@@ -31,6 +31,8 @@ internal static class Menu
     static float _noteUntil;
 
     public static bool IsOpen => _open;
+    // On the Camera page the smart camera keeps working, so its settings can be tried out while looking.
+    public static bool OnCameraPage => _open && _page == Page.Camera;
 
     public static void Open()
     {
@@ -133,7 +135,10 @@ internal static class Menu
                 list.Add(Section("Force feedback", Page.Ffb, "Profile, strength and every detail of the force feedback."));
                 list.Add(Section("Steering & pedals", Page.Steering, "Steering lock, sensitivity, deadzones."));
                 list.Add(Section("Clutch & shifter", Page.Clutch, "Real clutch, stalling, bite, H-shifter."));
+                list.Add(Section("Camera", Page.Camera, "The smart third-person camera: which side, how high, how far, what it does on slopes and among trees. You see each change at once."));
                 list.Add(Section("Buttons", Page.Buttons, "Which wheel button does what."));
+                list.Add(Bool("On-screen messages", Settings.ShowMessages,
+                    "Yellow messages in the top-left corner: start message, gears, camera side, stalls, button presses. Off = none (except a warning when the wheel isn't found)."));
                 list.Add(new Item
                 {
                     Label = "Setup tools", Value = () => ">",
@@ -196,7 +201,31 @@ internal static class Menu
                 });
                 break;
 
+            case Page.Camera:
+                list.Add(Bool("Smart camera", SmartCamera.Enabled, "Off = the game's own camera (the camera buttons then work as before)."));
+                list.Add(new Item
+                {
+                    Label = "Your side", Value = () => SmartCamera.SideName,
+                    Change = _ => SmartCamera.ToggleSide(),
+                    Help = "Which side of the car the camera sits on, on flat ground (the camera-side button does the same). On a mountainside the slope decides.",
+                });
+                list.Add(Num("Side angle", SmartCamera.SideAngle, 0f, 60f, 5f, v => $"{v:0}°", "How far round to the side it sits when crawling (0 = straight behind). Closer to behind when fast; slopes add to it."));
+                list.Add(Num("Height", SmartCamera.Height, 0f, 1f, 0.05f, Pct, "Height on the flat: 0 = lowest, 100% = straight down from above. Slopes add to it."));
+                list.Add(Num("Highest", SmartCamera.MaxHeight, 0.2f, 1f, 0.05f, Pct, "It never goes higher than this (100% = straight down from above)."));
+                list.Add(Num("Distance", SmartCamera.Distance, 0.5f, 2f, 0.05f, v => $"{v:0.00}x",
+                    "How far behind: 0.5x = closest, 1x = the game's normal, 2x = farthest. A little closer when crawling or among trees, further when fast or downhill."));
+                list.Add(Num("Slope moves", SmartCamera.Strength, 0f, 1.5f, 0.1f, Pct, "How much it moves for slopes, crests, mountainsides and speed (0 = only stays behind you)."));
+                list.Add(Num("Speed", SmartCamera.Speed, 0.25f, 3f, 0.25f, v => $"{v:0.00}x", "How quickly it moves to a new view."));
+                list.Add(Num("Wait after your moves", SmartCamera.ReturnAfter, 0.5f, 10f, 0.5f, v => $"{v:0.0} s", "After you turn the camera yourself, it waits this long before taking over again."));
+                list.Add(Choice("Mountainside", SmartCamera.SideSlope, "Driving along a mountainside: Downhill = it goes to the downhill side, looking back up at the car; Uphill = the uphill side; Off = stays on your side."));
+                list.Add(Bool("Back to your side", SmartCamera.SideReturn, "After a mountainside moved it to the other side: back to your side once the ground is flat again for 6 s. Off = it stays where the slope put it."));
+                list.Add(Bool("Zoom in when blocked", SmartCamera.ZoomInWhenBlocked, "When trees, rocks or buildings come between the car and the camera, it zooms in until you see the car."));
+                list.Add(Bool("Reversing view", SmartCamera.Reverse, "Reversing: it rises a little so you see the ground behind the car (it never swings round)."));
+                break;
+
             case Page.Buttons:
+                list.Add(Bool("Show button presses", Buttons.ShowButtonNumbers,
+                    $"Top-left: which wheel button you pressed and what it does (also {Buttons.DisplayToggleKey.Value} while driving). Needs On-screen messages on."));
                 foreach (var (name, desc) in Buttons.ActionList)
                 {
                     string n = name;
@@ -373,7 +402,7 @@ internal static class Menu
         string title = _page switch
         {
             Page.Ffb => "Force feedback", Page.Steering => "Steering & pedals", Page.Clutch => "Clutch & shifter",
-            Page.Buttons => "Buttons", _ => $"Wheel mod {Plugin.Version}",
+            Page.Camera => "Camera", Page.Buttons => "Buttons", _ => $"Wheel mod {Plugin.Version}",
         };
         GUI.Label(new Rect(x, y, iw, 34f), title, _title);
         y += 44f;

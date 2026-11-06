@@ -9,8 +9,8 @@
     <BepGameDir>$(USERPROFILE)\dev\oth-bep-test\game</BepGameDir>
     <BepInExCore>$(BepGameDir)\BepInEx\core</BepInExCore>
     <Interop>$(BepGameDir)\BepInEx\interop</Interop>
-    <!-- MelonLoader build: references come from a game copy with MelonLoader (only one loader per game folder). -->
-    <MelonGameDir>$(USERPROFILE)\dev\oth-ml-test\game</MelonGameDir>
+    <!-- MelonLoader build: references come from the real game (runs MelonLoader, regenerated after every game update, so a removed game member fails the build). -->
+    <MelonGameDir>C:\Program Files (x86)\Steam\steamapps\common\over the hill</MelonGameDir>
     <MelonDir>$(MelonGameDir)\MelonLoader</MelonDir>
   </PropertyGroup>
 </Project>

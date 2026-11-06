@@ -43,6 +43,7 @@ Windows, Steam version of over the hill.
   INSTALL
 ---------------------------------------------------------------------
 
+@installer
 1. Close the game (and MOZA Pit House if you have it).
 2. Extract this zip (right-click > "Extract All..."). Don't run it
    from inside the zip.
@@ -51,9 +52,11 @@ Windows, Steam version of over the hill.
      "More info" > "Run anyway".
    - If Windows asks for administrator permission: click Yes.
 
+@end
 @pack
 The installer asks which parts you want.
 @end
+@installer
 The installer finds the game by itself (any Steam library, any drive)
 and installs into the game folder, with a mod loader:
   - No mod loader yet: it downloads MelonLoader 0.7.3 from its
@@ -65,24 +68,83 @@ and installs into the game folder, with a mod loader:
   - BepInEx already there: it uses BepInEx instead (and updates it to
     the tested build, downloaded from bepinex.dev).
   - Both found: it stops, because they don't work together.
-@wheel
+@end
+@wheel+installer
 For Moza owners it also installs the Pit House profile
 "R3 - over the hill (wheel mod)".
 @end
+@installer
 No original game files are changed.
-@wheel
+@end
+@wheel+installer
 
 Another wheel mod (TrailWheel) installed? The installer offers to move
 it to Mods\disabled\ (not deleted), because two wheel mods fight over
 the wheel.
 @end
-@single
+@single+installer
 
 Installing another OTH mod later (e.g. the cockpit view or the wheel
 mod) with its own Install.bat keeps what's already installed.
 @end
+@installer
 
 Prefer to install by hand? See the "Manual install" folder.
+@end
+@manual
+This is the MANUAL download: no installer, you copy the files into
+the game folder yourself. Prefer a one-click installer (finds the
+game, installs MelonLoader for you, works with BepInEx too, easy
+uninstall)? Get the installer zip from GitHub:
+@end
+@wheel+manual
+  https://github.com/JonkoMonk/oth-wheel/releases
+@end
+@cockpit+manual
+  https://github.com/JonkoMonk/oth-cockpit/releases
+@end
+@manual
+
+1. Close the game.
+2. Install MelonLoader 0.7.3 or newer into the game, if you don't
+   have it yet (most over the hill mods use it):
+   https://github.com/LavaGang/MelonLoader/releases
+   Run its installer and select over the hill.
+3. Open the game folder: in Steam, right-click over the hill >
+   Manage > Browse local files.
+@end
+@wheel+manual
+4. Copy the Mods folder from this zip into the game folder (if
+   Windows asks, merge the folders). You then have:
+     <game folder>\Mods\OthWheel.Melon.dll
+@end
+@cockpit+manual
+4. Copy the Mods and UserData folders from this zip into the game
+   folder (if Windows asks, merge the folders). You then have:
+     <game folder>\Mods\OthCockpit.Melon.dll
+     <game folder>\UserData\OthCockpit\models\  (one file per car)
+@end
+@manual
+
+No original game files are changed. Using BepInEx instead of
+MelonLoader? Take the installer zip from GitHub (it has the BepInEx
+version).
+@end
+@wheel+manual
+
+The installer also switches on a hidden game setting for wheels
+(DirectInput support) that the mod was tested with, and installs a
+Moza Pit House profile. If your wheel isn't found after a manual
+install, run the installer zip from GitHub once.
+
+Don't install another wheel mod (e.g. TrailWheel) at the same time:
+two wheel mods fight over the wheel.
+@end
+@cockpit+manual
+
+Don't use another first-person camera mod together with the cockpit
+view: two first-person views fight over the camera.
+@end
 
 
 ---------------------------------------------------------------------
@@ -91,8 +153,12 @@ Prefer to install by hand? See the "Manual install" folder.
 
 @wheel
 1. Plug in the wheel and start its driver software (Moza Pit House,
-   Logitech G HUB, Thrustmaster / Fanatec control panel). Moza: select
-   the profile "R3 - over the hill (wheel mod)".
+   Logitech G HUB, Thrustmaster / Fanatec control panel).
+@end
+@wheel+installer
+   Moza: select the profile "R3 - over the hill (wheel mod)".
+@end
+@wheel
    Set the rotation to 540 degrees if you can: that feels best here.
 @end
 2. Start the game from Steam.
@@ -166,8 +232,11 @@ id and your axis/button choices. Nothing is ever sent automatically.
 
   Right paddle ....... shift up
   Left paddle ........ shift down
-  A .................. winch: extend / interact, OK in menus
-  B .................. winch: release
+  A .................. winch: extend / interact; OK in menus
+                       (take the photo in photo mode, play/pause in
+                       the music player)
+  B .................. winch: release; back in menus (photo mode,
+                       map, music player, quick action wheel too)
   Y .................. winch: attach / pull
   X .................. high / low range (4x4 transfer case)
   N .................. headlights
@@ -176,24 +245,69 @@ id and your axis/button choices. Nothing is ever sent automatically.
   BOX ................ reset car
   WIP ................ push car
   FL ................. horn
-  S1 ................. map
+  S1 ................. map (short press); hold for half a second =
+                       quick action wheel (the game's Q): D-pad
+                       left/right steps round it, up/down = top /
+                       bottom item, A = OK, B = close
   MENU ............... pause menu / back
   RADIO .............. force feedback profile: Soft / Normal / Realistic / Heavy
-  D-pad .............. look around (camera); arrows in menus
-  S2 / HOME .......... camera zoom in / out (hold)
+  D-pad .............. turn the camera; arrows in menus; moves the
+                       map; looks around in photo mode; steps
+                       through the winch points
+  S2 / HOME .......... camera zoom in / out (hold); also on the map
+                       and in photo mode
   CAM ................ cockpit (first person) view on / off
                        (needs the OTH Cockpit mod)
-  PL ................. free
+  PL ................. smart camera: left / right side of the car
 
 Other wheels: you choose in the wizard. Keyboard and gamepad keep
 working as normal.
 
 When you press a wheel button, its name and action show briefly in
 the top-left corner. Press F8 to turn that display off (and F8 again
-to turn it back on). The choice is remembered.
+to turn it back on). The choice is remembered. To turn off ALL the
+yellow messages (start message, gears, camera side, ...): F3 >
+On-screen messages.
 
 
 @end
+@wheel
+---------------------------------------------------------------------
+  SMART CAMERA  (third person)
+---------------------------------------------------------------------
+
+With your hands on the wheel you can't keep turning the camera, so the
+mod picks a good view by itself, made for driving off-road:
+  - slow off-road driving: a bit to the side of and above the car,
+    closer to straight behind when you go fast
+  - going downhill or over a crest: higher, so you see the ground ahead
+  - along the side of a mountain: round to the downhill side, looking
+    back up at the car (setting SideSlope)
+  - reversing: it doesn't swing round; it rises a little so you see
+    the ground behind the car
+  - trees or rocks between you and the car: it zooms in until you can
+    see the car again (setting ZoomInWhenBlocked)
+  - distance: a little closer when crawling or among trees, further
+    back when going fast or downhill
+  - your side: the camera-side button (Moza: PL) puts it on the left or
+    right of the car; a mountainside borrows it and gives it back once
+    the ground is flat again (setting SideReturn)
+
+Every camera setting is also in the in-game menu (F3 > Camera), where
+you see each change at once while driving.
+  - standing still: it leaves the camera alone
+
+Your own camera moves always win: turn it with the mouse (right
+button), the gamepad's right stick or the wheel's D-pad, and the smart
+camera waits 2.5 seconds before it eases back. Raising or lowering the
+camera yourself sets the height it uses on the flat (until the game
+restarts). The D-pad turns the camera smoothly and speeds up while
+held.
+
+Don't like it? Set Enabled = false under [SmartCamera] in the settings
+file (see below) to get the game's own camera back.
+
+
 @cockpit
 ---------------------------------------------------------------------
   COCKPIT VIEW
@@ -212,7 +326,12 @@ The view hides by itself in menus, the map, camp and photo mode.
 
 Cars without a cockpit yet just show "No cockpit for ... yet".
 
-Settings (seat, field of view, look speed, leaning into corners):
+Mirrors: the rear-view mirror and the side mirrors show what's behind
+you. They cost some frame rate; pick what suits your PC with
+[Mirrors] Quality in the settings file: Low (only the rear-view
+mirror), Medium (default), High or Ultra. Enabled = false turns them off.
+
+Settings (seat, field of view, look speed, leaning into corners, mirrors):
   MelonLoader:  <game folder>\UserData\OthCockpit\jonkomonk.oth.cockpit.cfg
   BepInEx:      <game folder>\BepInEx\config\jonkomonk.oth.cockpit.cfg
 
@@ -249,12 +368,22 @@ More can be tuned in this file (open it with Notepad):
 Changes take effect within 2 seconds, even while the game runs.
 Every setting has a short explanation above it. Examples:
   SetupKey ............ key for the setup wizard (default F3)
+  ShowMessages ........ yellow messages in the top-left corner on/off
   LockDegrees ......... steering lock (default 540)
   ZoomSpeed ........... camera zoom speed
-  CameraSpeed ......... camera look speed
+  CameraSpeed ......... D-pad camera speed (smart camera off)
+  [SmartCamera] ....... smart camera: Enabled, Height (on the flat),
+                        MaxHeight, SideAngle, SideSlope (Downhill /
+                        Uphill / Off), Strength, Speed, ReturnAfter,
+                        Reverse, ZoomInWhenBlocked, SideReturn,
+                        Distance, DpadSpeed / DpadMaxSpeed
   Profile / StrengthTrim  force feedback profile and overall strength
   [ButtonKeys] ........ which game key each action presses (only if
                         you changed the game's keyboard controls)
+  [MenuKeys] .......... what A (OK) and B (back) press outside
+                        driving: menus, photo mode, map, music
+  QuickMenuOnMapHold .. hold the map button = quick action wheel
+                        (off, or give "QuickMenu" its own button)
 
 Your wheel setups (from the wizard) are in
   MelonLoader:  <game folder>\UserData\OthWheel\setups\
@@ -271,6 +400,12 @@ Delete the settings file to go back to the default settings.
 "NO wheel found" message, or the wheel does nothing
   - Is the wheel plugged in and its driver software running? Then
     restart the game and keep its window in front while it starts.
+@end
+@wheel+manual
+  - Installed by hand? Run the installer zip from GitHub once (it
+    switches on the game's hidden wheel setting).
+@end
+@wheel
 
 "this wheel isn't set up yet"
   - Press F3 and go through the setup wizard.
@@ -287,13 +422,21 @@ full lock)
 
 @end
 The game doesn't start / crashes at start after installing
+@installer
   - Run Uninstall.bat. The game is then back to normal.
+@end
+@manual
+  - Remove the files you copied (see UNINSTALL). The game is then
+    back to normal.
+@end
   - Antivirus: some antivirus programs dislike "version.dll"
     (MelonLoader) or "winhttp.dll" (BepInEx) in the game folder.
     That's how the mod loader starts. Allow it.
+@installer
   - "Both mod loaders are installed": keep only one (MelonLoader or
     BepInEx). Remove the other with the uninstaller of the mod that
     put it there, then run Install.bat again.
+@end
 
 Camera mods (Rudimentary FPP, BonnetCam)
 @wheel
@@ -308,8 +451,14 @@ Camera mods (Rudimentary FPP, BonnetCam)
 
 After a game update the mod stops working
   - The game update may have changed things the mod relies on.
+@installer
     Uninstall.bat makes the game work normally again; wait for a new
     version of the mod.
+@end
+@manual
+    Remove the mod's files (see UNINSTALL) to play normally again;
+    wait for a new version of the mod.
+@end
 
 Something else
 @wheel
@@ -328,17 +477,34 @@ Something else
   UNINSTALL
 ---------------------------------------------------------------------
 
+@installer
 Close the game, double-click Uninstall.bat. If more than one OTH mod
 is installed, it asks which ones to remove. It removes their files
 and settings.
-@wheel
+@wheel+installer
 Wheel mod: also your wheel setups and, if you want, the Pit House
 profile.
-@end
+@installer
 When the last OTH mod is removed, the mod loader goes too:
   - MelonLoader: removed only if this installer put it there (it asks
     first if other mods use it). A MelonLoader you had before stays.
   - BepInEx: removed too (it asks first if other mods use it).
-@wheel
+@wheel+installer
 If the installer had moved TrailWheel aside, it offers to move it back.
+@installer
+@end
+@manual
+Close the game and delete what you copied:
+@end
+@wheel+manual
+  <game folder>\Mods\OthWheel.Melon.dll
+  <game folder>\UserData\OthWheel\  (your settings and wheel setups)
+@end
+@cockpit+manual
+  <game folder>\Mods\OthCockpit.Melon.dll
+  <game folder>\UserData\OthCockpit\  (car models and settings)
+@end
+@manual
+MelonLoader itself stays; remove it with its own installer if no
+other mod needs it.
 @end

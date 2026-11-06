@@ -365,10 +365,11 @@ internal static class CarPhysics
         Buttons.LastText = "Engine stalled: press ignition to restart"; Buttons.LastTime = now; Buttons.AlwaysShowUntil = now + 3f;
     }
 
-    static string _last;
-    static float _nextLog;
+    static string _last, _lastKey;
+    static float _nextLog, _nextSlow;
 
-    // Clutch/engine state while it changes (at most 5 lines a second).
+    // Clutch/engine state while it changes: at once (at most 5 lines a second) when the stall state, gear or
+    // clutch pedal (in steps of 0.5) changes, otherwise every 2 s at most (speed and slope change all the time).
     static void LogState(float now)
     {
         if (!_applied || now < _nextLog) return;
@@ -382,8 +383,13 @@ internal static class CarPhysics
                        $" thr={d.Get(Channel.Input, InputData.Throttle) / 10000f:0.0} load={(e != null ? e.sensorLoad : -1f):0.0} idleMax={_car.engine.maxIdleThrottle:0.00}" +
                        $" {(_car.cachedRigidbody != null ? _car.cachedRigidbody.velocity.magnitude * 3.6f : 0f):0} km/h slope {Math.Asin(Math.Clamp(_car.transform.forward.y, -1f, 1f)) * 57.3:0}°";
         if (state == _last) return;
+        string key = $"{stalled}/{e != null && e.sensorStalled} {d.Get(Channel.Vehicle, VehicleData.GearboxGear)} " +
+                     $"{Math.Round(d.Get(Channel.Input, InputData.Clutch) / 5000f)}";
+        if (key == _lastKey && now < _nextSlow) return;
         _last = state;
+        _lastKey = key;
         _nextLog = now + 0.2f;
+        _nextSlow = now + 2f;
         Plugin.Info($"clutch: {state}");
     }
 }

@@ -6,12 +6,13 @@ Watch it in action: [mod spotlight video](https://youtu.be/rHvPhiTygKQ). Downloa
 
 - **Moza R3** (ES rim, SR-P Lite pedals, HGP shifter): works right away.
 - **Any other wheel** (Logitech, Thrustmaster, Fanatec, Moza, Simagic, …): an in-game setup wizard (**F3**) asks you to turn the wheel, press the pedals and pick your buttons. About 2 minutes.
+- **Smart camera** (1.1.0): the third-person camera picks a good off-road view by itself (side-on when crawling, higher downhill and over crests, the downhill side along a mountain, no swinging round when reversing, zooms in when trees block the view); your own camera moves always win. `[SmartCamera]` in the settings file.
 
 [**OTH Cockpit**](https://github.com/JonkoMonk/oth-cockpit) (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer ([OTH Cockpit on Nexus Mods](https://www.nexusmods.com/overthehill/mods/90)).
 
 ## Download
 
-From [Nexus Mods](https://www.nexusmods.com/overthehill/mods/83) or the [Releases](../../releases) page, pick one:
+The one-click installer is on the [Releases](../../releases) page (Nexus Mods blocks zips with install scripts), pick one:
 
 | Zip | Contains |
 |---|---|
@@ -19,7 +20,7 @@ From [Nexus Mods](https://www.nexusmods.com/overthehill/mods/83) or the [Release
 | `OTH-Cockpit-v…-alpha.zip` | the cockpit view |
 | `OTH-Wheel-and-Cockpit-v….zip` | both (the installer asks which ones) |
 
-Installing one zip and later another keeps what's already there.
+Installing one zip and later another keeps what's already there. [Nexus Mods](https://www.nexusmods.com/overthehill/mods/83) has a version to copy in by hand.
 
 ## Install
 
@@ -35,4 +36,4 @@ Windows, .NET SDK 8 (target net6.0). The projects reference the game's generated
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). MelonLoader (Apache-2.0) and BepInEx (LGPL-2.1) are not included: the installer downloads the official release (MelonLoader from its GitHub page, BepInEx from bepinex.dev) and only uses it if its SHA-256 matches.
+MIT — see [LICENSE](LICENSE). The installer downloads MelonLoader (Apache-2.0) or BepInEx (LGPL-2.1) from their official sites; they keep their own licences.

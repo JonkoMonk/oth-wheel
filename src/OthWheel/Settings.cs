@@ -19,6 +19,7 @@ internal static class Settings
     public static ConfigEntry<float> LockDegrees;
     public static ConfigEntry<float> ThrottleDeadzone, BrakeDeadzone, ThrottleFullAt, BrakeFullAt, ClutchDeadzone, ClutchFullAt;
     public static ConfigEntry<string> SetupKey;
+    public static ConfigEntry<bool> ShowMessages;
 
     public static ConfigEntry<float> LogInterval;
 
@@ -54,6 +55,9 @@ internal static class Settings
 
         SetupKey = cfg.Bind("General", "SetupKey", "F3", "Keyboard key that opens the wheel setup wizard / menu. " +
             "(Not F7: the 'First Person and Drone' mod uses F6 and F7.)");
+        ShowMessages = cfg.Bind("General", "ShowMessages", true,
+            "Yellow messages in the top-left corner (start message, gears, camera side, stalls, button presses). " +
+            "false = none, except a warning at the start when the wheel isn't found or force feedback isn't connected.");
         // One-time move of the old default F7 to F3 for existing installs (F7 = drone in First Person and Drone).
         var keyDefaults = cfg.Bind("Debug", "KeyDefaultsVersion", 0, "Internal, don't change.");
         if (keyDefaults.Value < 1)
@@ -70,6 +74,7 @@ internal static class Settings
         Shifter.Bind(cfg);
         CarPhysics.Bind(cfg);
         GearProbe.Bind(cfg);
+        SmartCamera.Bind(cfg);
 
         _lastWrite = File.Exists(cfg.ConfigFilePath) ? File.GetLastWriteTimeUtc(cfg.ConfigFilePath) : DateTime.MinValue;
     }

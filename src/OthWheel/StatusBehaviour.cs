@@ -45,6 +45,7 @@ public class StatusBehaviour : MonoBehaviour
             CockpitLink.Update();
             Wizard.Update(now);
             Menu.Update(now);
+            GameMenus.Update(now);
             Buttons.Update(now);
             Shifter.Update(now);
             CarPhysics.Update(now);
@@ -115,11 +116,13 @@ public class StatusBehaviour : MonoBehaviour
                         : Ffb.Ready
                             ? $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}, force feedback on"
                             : $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}. Force feedback NOT connected yet: click into the game window.";
-                GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
+                // With messages off only a problem is shown (everything but the "all fine" line).
+                bool fine = Devices.Active != null && Devices.Active.Ffb?.Direction != 0 && Ffb.Ready;
+                if (Settings.ShowMessages.Value || !fine) GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
             }
             Wizard.OnGUI();
             Menu.OnGUI();
-            bool show = Buttons.ShowButtonNumbers.Value || now < Buttons.AlwaysShowUntil;
+            bool show = Settings.ShowMessages.Value && (Buttons.ShowButtonNumbers.Value || now < Buttons.AlwaysShowUntil);
             if (Wizard.IsOpen || !show || now - Buttons.LastTime > 3f) return;
             GUI.Label(new Rect(30, 30, 1400, 50), Buttons.LastText, _style);
         }
