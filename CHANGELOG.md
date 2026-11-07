@@ -7,6 +7,25 @@ Version numbers: MINOR (1.X) = new feature, PATCH (1.0.X) = fixes.
 - 1.1.0 (rest): "VR recenter" wheel-button action (for OTH VR)
 - 1.2.0: clutch required (optional: shifting without the clutch grinds)
 
+## 1.1.1 (2026-11-07)
+
+- Known: on the map the selection circle still only stays in the middle after you press A once (the mod
+  now switches the game's circle to its Centered mode and needs a real mouse move to let go, but that
+  wasn't enough yet).
+- Logitech G923 (PlayStation 4 and PC) works right away: built-in setup, thanks to rh5knk. Your own setup
+  from the wizard still goes first.
+- Removing the mod leaves nothing behind. A player deleted `Mods\OthWheel.Melon.dll` and F3 still opened
+  the wheel menu: another copy was still loading (e.g. `BepInEx\plugins\OthWheel.dll` from the installer
+  on a BepInEx game, or a renamed copy like `OthWheel.Melon (2).dll`).
+  - New F3 > **Remove the mod**: lists every file to delete (also copies in other folders) and opens the
+    folder with the mod's file selected. Without a wheel setup: 9 in the setup wizard.
+  - At the start, a warning when the mod is installed more than once (the copies fight over the wheel).
+    The log says which file the mod was loaded from.
+  - Uninstall.bat removes every copy it finds (any name starting with OthWheel / OthCockpit, in Mods\,
+    Plugins\ and BepInEx\plugins\ with their subfolders) and says if one couldn't be deleted.
+    Install.bat removes older copies, so exactly one is left.
+  - README: the manual uninstall also lists the BepInEx files.
+
 ## 1.1.0 (2026-11-06)
 
 - Works with the game's 26.10.30 update.

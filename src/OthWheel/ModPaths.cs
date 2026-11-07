@@ -12,11 +12,16 @@ internal static class ModPaths
     public static string DataDir { get; private set; }   // setups\ and presets\ live here
     public static string LogFile { get; private set; }    // the loader's log, for the support report
 
-    public static void Init(string loader, string settingsDir, string dataDir, string logFile)
+    public static string GameDir { get; private set; }
+    public static string DllPath { get; private set; }    // this mod's own file, to tell players what to delete
+
+    public static void Init(string loader, string settingsDir, string dataDir, string logFile, string gameDir, string dllPath)
     {
         Loader = loader;
         SettingsFile = Path.Combine(settingsDir, Plugin.Guid + ".cfg");
         DataDir = dataDir;
         LogFile = logFile;
+        GameDir = gameDir;
+        DllPath = dllPath;
     }
 }

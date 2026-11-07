@@ -285,6 +285,7 @@ internal static class Wizard
         sb.AppendLine("6   Save a support report on the desktop");
         sb.AppendLine(sh != null ? "7   Set up the H-pattern shifter again" : "7   Set up an H-pattern shifter");
         if (sh?.FilePath != null) sb.AppendLine("8   Remove the shifter setup");
+        sb.AppendLine("9   Remove the wheel mod (shows which files to delete and opens their folder)");
         _body = sb.ToString();
         _footer = $"{_openKeyName} = close";
 
@@ -313,8 +314,15 @@ internal static class Wizard
             case 8:
                 if (sh?.FilePath != null) _note = Shifter.RemoveActive();
                 break;
+            case 9:
+                _note = RemoveNote();
+                break;
         }
     }
+
+    // Everything to delete for a full removal (inside the game folder) + Explorer at the mod's file.
+    static string RemoveNote() =>
+        "To remove the wheel mod, close the game and delete (in the game folder): " + string.Join(",  ", Copies.ToDelete()) + ".  " + Copies.ShowInExplorer();
 
     // --- H-pattern shifter (own setup, separate from the wheel setup) ----------------------------
 
@@ -430,8 +438,11 @@ internal static class Wizard
             sb.AppendLine("(Moza Pit House, Logitech G HUB, Thrustmaster / Fanatec control panel). 540° feels best here.");
             sb.AppendLine("Pedals that are set to 'combined' mode in the driver should be switched to separate.");
         }
+        sb.AppendLine();
+        sb.AppendLine("Don't want the wheel mod? 9 shows which files to delete and opens their folder.");
+        if (digit == 9) _note = RemoveNote();
         _body = sb.ToString();
-        _footer = Devices.Connected.Count > 0 ? $"1 = start     {_openKeyName} = cancel" : $"{_openKeyName} = cancel";
+        _footer = Devices.Connected.Count > 0 ? $"1 = start     9 = remove the mod     {_openKeyName} = cancel" : $"9 = remove the mod     {_openKeyName} = cancel";
         if (digit == 1 && Devices.Connected.Count > 0) Go(Page.Steering, Time.unscaledTime);
     }
 
@@ -851,7 +862,12 @@ internal static class Wizard
         GUI.Label(new Rect(x, y, iw, 44f), _title, _titleStyle);
         y += 56f;
         GUI.Label(new Rect(x, y, iw, h - 200f), _body, _bodyStyle);
-        if (_note.Length > 0) GUI.Label(new Rect(x, r.yMax - 130f, iw, 70f), _note, _noteStyle);
+        if (_note.Length > 0)
+        {
+            // Long notes (the remove-the-mod file list) grow upwards from above the footer.
+            float nh = Mathf.Max(70f, _noteStyle.CalcHeight(new GUIContent(_note), iw));
+            GUI.Label(new Rect(x, r.yMax - 60f - nh, iw, nh), _note, _noteStyle);
+        }
         GUI.Label(new Rect(x, r.yMax - 52f, iw, 40f), _footer, _footStyle);
     }
 }

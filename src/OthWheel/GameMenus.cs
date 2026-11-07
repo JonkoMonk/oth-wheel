@@ -92,23 +92,23 @@ internal static unsafe class GameMenus
     }
 
     // On the map the selection circle follows the mouse pointer, so with the wheel it sat wherever the mouse
-    // was left. While the map is open the pointer is held in the middle of the game window (the D-pad moves
-    // the map under it, zoom keeps the middle in place), until the real mouse moves it: then it's left alone
-    // until the map is opened again.
-    // The game moves the pointer once itself when the map opens (it gave up after one frame on 2026-10-27,
-    // "mouse moved" 7 ms after opening), so: no checks for the first second, and only a pointer that is off
-    // on two frames in a row counts as the real mouse (a one-off jump is put back).
+    // was left. While the map is open the game's own circle mode is Centered (AfterMapUpdate; since game
+    // 26.10.30 only a mouse click moved it there otherwise) and the pointer is held in the middle of the game
+    // window, where A clicks (the D-pad moves the map under it, zoom keeps the middle in place). When the real
+    // mouse moves, both are left alone until the map is opened again.
+    // The game moves the pointer once itself when the map opens, so no checks for the first second, and a
+    // bumped desk isn't the mouse (2026-11-06: 4-15 px): it takes 40 px of travel within half a second.
+    const float MouseTakeOverPixels = 40f, MouseTakeOverSeconds = 0.5f;
     static (int X, int Y)? _cursorSetTo;
     static bool _mouseTookOver;
-    static float _mapOpenedAt = -100f;
-    static int _offFrames;
+    static float _mapOpenedAt = -100f, _mouseTravel, _mouseTravelSince;
 
     static void KeepMapCursorCentred()
     {
         if (Now != Context.MapScreen || !Win32.GameHasFocus())
         {
             _cursorSetTo = null;
-            if (Now != Context.MapScreen) { _mouseTookOver = false; _mapOpenedAt = -100f; }
+            if (Now != Context.MapScreen) { _mouseTookOver = false; _mapOpenedAt = -100f; _mouseTravel = 0f; }
             return;
         }
         float now = Time.unscaledTime;
@@ -117,9 +117,12 @@ internal static unsafe class GameMenus
         var centre = Win32.GameWindowCentre();
         if (centre == null) return;
         var cur = Win32.CursorPos();
-        bool off = _cursorSetTo != null && (Math.Abs(cur.X - _cursorSetTo.Value.X) > 2 || Math.Abs(cur.Y - _cursorSetTo.Value.Y) > 2);
-        _offFrames = off && now - _mapOpenedAt > 1f ? _offFrames + 1 : 0;
-        if (_offFrames >= 2)
+        if (_cursorSetTo != null && now - _mapOpenedAt > 1f)
+        {
+            if (now - _mouseTravelSince > MouseTakeOverSeconds) { _mouseTravel = 0f; _mouseTravelSince = now; }
+            _mouseTravel += Mathf.Sqrt(Mathf.Pow(cur.X - _cursorSetTo.Value.X, 2f) + Mathf.Pow(cur.Y - _cursorSetTo.Value.Y, 2f));
+        }
+        if (_mouseTravel > MouseTakeOverPixels)
         {
             _mouseTookOver = true;
             Plugin.Info($"map: mouse moved ({cur.X},{cur.Y} instead of {_cursorSetTo.Value.X},{_cursorSetTo.Value.Y}), no longer keeping the pointer in the middle");
@@ -309,6 +312,7 @@ internal static unsafe class GameMenus
         try
         {
             _mapCtl = __instance;
+            KeepCircleMode(__instance);
             int dir = Buttons.HeldZoom;
             if (dir == 0 || Now != Context.MapScreen) return;
             var rect = __instance.mapRect;
@@ -329,6 +333,21 @@ internal static unsafe class GameMenus
             try { __instance.mapView.UpdatePlayersNameZoom(next); } catch { }
         }
         catch (Exception e) { Plugin.ErrorOnce("map zoom", e); _mapCtl = null; }
+    }
+
+    // Its own try: a map without this mode (game update) keeps its zoom. The game sets the mode back when it
+    // thinks the controls changed, so this is checked every frame.
+    static void KeepCircleMode(MapController map)
+    {
+        try
+        {
+            if (Now != Context.MapScreen) return;
+            var snapper = map.mapCursorSnapper;
+            if (snapper == null) return;
+            var wanted = _mouseTookOver ? MapCursorSnapper.CursorMode.FollowPointer : MapCursorSnapper.CursorMode.Centered;
+            if (snapper.mode != wanted) { snapper.SetMode(wanted); Plugin.Info($"map: circle mode {wanted}"); }
+        }
+        catch (Exception e) { Plugin.ErrorOnce("map circle mode", e); }
     }
 
     // --- winch point picker -----------------------------------------------------------------------

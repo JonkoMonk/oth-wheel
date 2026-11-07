@@ -21,7 +21,7 @@ internal static class Menu
         public Action Open;          // right arrow on a section or command
     }
 
-    enum Page { Main, Ffb, Steering, Clutch, Camera, Buttons }
+    enum Page { Main, Ffb, Steering, Clutch, Camera, Buttons, Remove }
 
     static bool _open;
     static Page _page;
@@ -145,7 +145,23 @@ internal static class Menu
                     Help = "Step by step: set up a new wheel, force feedback test, wheel rotation, H-shifter setup, share your setup, support report. (Driving pauses while it's open.)",
                     Open = () => { Close(); Wizard.OpenTools(Time.unscaledTime); },
                 });
+                list.Add(Section("Remove the mod", Page.Remove, "Which files to delete to remove the wheel mod completely, and a button that opens their folder."));
                 list.Add(new Item { Label = "Close", Open = Close, Help = $"Or press {Settings.SetupKey.Value}." });
+                break;
+
+            case Page.Remove:
+                list.Add(new Item
+                {
+                    Label = "Show the mod's file in Explorer", Value = () => ">",
+                    Open = () => Note(Copies.ShowInExplorer()),
+                    Help = "Opens the game folder with the mod's file selected.",
+                });
+                foreach (var line in Copies.ToDelete())
+                    list.Add(new Item
+                    {
+                        Label = line,
+                        Help = "Close the game, then delete everything in this list (paths are inside the game folder). Installed with Install.bat? Its Uninstall.bat removes it all for you.",
+                    });
                 break;
 
             case Page.Ffb:
@@ -402,7 +418,8 @@ internal static class Menu
         string title = _page switch
         {
             Page.Ffb => "Force feedback", Page.Steering => "Steering & pedals", Page.Clutch => "Clutch & shifter",
-            Page.Camera => "Camera", Page.Buttons => "Buttons", _ => $"Wheel mod {Plugin.Version}",
+            Page.Camera => "Camera", Page.Buttons => "Buttons", Page.Remove => "Remove the wheel mod: delete these",
+            _ => $"Wheel mod {Plugin.Version}",
         };
         GUI.Label(new Rect(x, y, iw, 34f), title, _title);
         y += 44f;
@@ -410,7 +427,8 @@ internal static class Menu
         {
             bool sel = i == _sel;
             var it = items[i];
-            GUI.Label(new Rect(x, y, iw * 0.62f, rowH), (sel ? "> " : "   ") + it.Label, sel ? _rowSel : _row);
+            // A line without a value (file paths on the Remove page) gets the whole width.
+            GUI.Label(new Rect(x, y, it.Value == null ? iw : iw * 0.62f, rowH), (sel ? "> " : "   ") + it.Label, sel ? _rowSel : _row);
             string v = it.Value?.Invoke() ?? "";
             if (sel && it.Change != null) v = $"<  {v}  >";
             GUI.Label(new Rect(x + iw * 0.5f, y, iw * 0.5f, rowH), v, sel ? _valueSel : _value);

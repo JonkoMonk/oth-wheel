@@ -1,0 +1,34 @@
+{
+  "Format": 1,
+  "Name": "Logitech G923 (PlayStation 4 and PC)",
+  "Notes": "From a player's wizard setup (rh5knk, 2026-10-28), not tested by the author. G HUB: 540 degrees, sensitivity 50, Apply game settings on. Ignition, reset, push car and cockpit view have no button yet: pick them in the F3 menu.",
+  "Devices": [
+    { "Name": "Logitech G HUB G923 Racing Wheel for PlayStation 4 and PC (USB)", "UsbId": "046D:C266" }
+  ],
+  "Steering": { "Device": 0, "Axis": "X", "Left": 0, "Center": 32767, "Right": 65535 },
+  "RotationDegrees": 540,
+  "Throttle": { "Device": 0, "Axis": "Y", "Released": 65535, "Pressed": 0 },
+  "Brake": { "Device": 0, "Axis": "Rz", "Released": 65535, "Pressed": 0 },
+  "Clutch": { "Device": 0, "Axis": "Slider1", "Released": 65535, "Pressed": 768 },
+  "Ffb": { "Device": 0, "Direction": -1, "Strength": 1.0 },
+  "Buttons": {
+    "GearUp": { "Device": 0, "Button": 4 },
+    "GearDown": { "Device": 0, "Button": 5 },
+    "HiLo": { "Device": 0, "Button": 1 },
+    "WinchAttach": { "Device": 0, "Button": 3 },
+    "WinchRelease": { "Device": 0, "Button": 2 },
+    "WinchExtendAndInteract": { "Device": 0, "Button": 0 },
+    "Headlights": { "Device": 0, "Button": 7 },
+    "ParkingBrake": { "Device": 0, "Button": 10 },
+    "Map": { "Device": 0, "Button": 23 },
+    "Pause": { "Device": 0, "Button": 24 },
+    "Horn": { "Device": 0, "Button": 11 },
+    "CameraLeft": { "Device": 0, "Button": 131 },
+    "CameraRight": { "Device": 0, "Button": 129 },
+    "CameraUp": { "Device": 0, "Button": 128 },
+    "CameraDown": { "Device": 0, "Button": 130 },
+    "ZoomIn": { "Device": 0, "Button": 19 },
+    "ZoomOut": { "Device": 0, "Button": 20 }
+  },
+  "Labels": {}
+}

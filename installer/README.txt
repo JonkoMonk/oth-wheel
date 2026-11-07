@@ -420,6 +420,10 @@ full lock)
   - Run the force feedback test again (F3 > 3), with your hands off
     the wheel when it asks.
 
+The mod still runs after removing it / "installed 2 times" message
+  - A copy is left somewhere. F3 > Remove the mod shows every copy
+    and opens its folder. See UNINSTALL.
+
 @end
 The game doesn't start / crashes at start after installing
 @installer
@@ -480,7 +484,8 @@ Something else
 @installer
 Close the game, double-click Uninstall.bat. If more than one OTH mod
 is installed, it asks which ones to remove. It removes their files
-and settings.
+and settings, and every other copy of them it finds (renamed copies,
+or ones in the other mod loader's folder).
 @wheel+installer
 Wheel mod: also your wheel setups and, if you want, the Pit House
 profile.
@@ -499,12 +504,27 @@ Close the game and delete what you copied:
 @wheel+manual
   <game folder>\Mods\OthWheel.Melon.dll
   <game folder>\UserData\OthWheel\  (your settings and wheel setups)
+Ever used the installer from GitHub, or BepInEx? Then also delete:
+  <game folder>\BepInEx\plugins\OthWheel.dll
+  <game folder>\BepInEx\config\OthWheel\
+  <game folder>\BepInEx\config\jonkomonk.oth.wheel.cfg
 @end
 @cockpit+manual
   <game folder>\Mods\OthCockpit.Melon.dll
   <game folder>\UserData\OthCockpit\  (car models and settings)
+Ever used the installer from GitHub, or BepInEx? Then also delete:
+  <game folder>\BepInEx\plugins\OthCockpit.dll
+  <game folder>\BepInEx\plugins\OthCockpit\
 @end
 @manual
 MelonLoader itself stays; remove it with its own installer if no
 other mod needs it.
+@end
+@wheel
+
+Still opens with F3 after removing it? Then a copy is left somewhere:
+every file whose name starts with "OthWheel" in Mods\ or
+BepInEx\plugins\ loads, renamed ones too (e.g. "OthWheel.Melon (2).dll").
+F3 > Remove the mod lists every copy and opens the folder of the one
+that is running.
 @end

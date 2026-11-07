@@ -58,6 +58,8 @@ $Loaders = @{
     }
 }
 
+$script:OldCopies = @()   # other copies of our mods removed during an install (listed in the last pop-up)
+
 # A hidden owner window keeps every pop-up in front of other windows.
 $Owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; Opacity = 0 }
 $Owner.Show(); $Owner.Hide()
@@ -299,6 +301,7 @@ function Install-ForBepInEx([string]$game, [bool]$wheel) {
     Copy-Item (Join-Path $FilesDir 'BepInEx.cfg') $bepCfg -Force
     if ($wheel) {
         Copy-Item (Join-Path $FilesDir $BepDll) (Join-Path $plugins $BepDll) -Force
+        $script:OldCopies += @(Remove-OtherCopies $game 'OthWheel' (Join-Path $plugins $BepDll))
         # Older versions used a different plugin id: keep the player's settings under the current name.
         $cfgPath = Join-Path $config $PluginCfg
         foreach ($old in @(Get-ChildItem -Path $config -File | Where-Object { $_.Name -like '*.oth.wheel.cfg' -and $_.Name -ne $PluginCfg })) {
@@ -349,7 +352,10 @@ function Install-ForMelonLoader([string]$game, [bool]$hadLoader, [bool]$wheel) {
         }
     }
 
-    if ($wheel) { Copy-Item (Join-Path $FilesDir $MelonDll) (Join-Path $mods $MelonDll) -Force }
+    if ($wheel) {
+        Copy-Item (Join-Path $FilesDir $MelonDll) (Join-Path $mods $MelonDll) -Force
+        $script:OldCopies += @(Remove-OtherCopies $game 'OthWheel' (Join-Path $mods $MelonDll))
+    }
     Unblock-Items $game $MelonItems
 
     $firstStart = "The FIRST start takes 1-2 minutes before anything happens (MelonLoader prepares the game; it needs internet once). A black text window opens next to the game: that's MelonLoader's log, it's normal. The game is NOT stuck, don't close it."
@@ -365,12 +371,14 @@ function Install-ForMelonLoader([string]$game, [bool]$hadLoader, [bool]$wheel) {
 function Install-Cockpit([string]$game, [bool]$bep) {
     if ($bep) {
         $plugins = Join-Path $game 'BepInEx\plugins'
-        Copy-Item (Join-Path $CockpitFiles $CockpitBepDll) (Join-Path $plugins $CockpitBepDll) -Force
+        $dll = Join-Path $plugins $CockpitBepDll
         $models = Join-Path $plugins 'OthCockpit\models'
     } else {
-        Copy-Item (Join-Path $CockpitFiles $CockpitMelonDll) (Join-Path $game "Mods\$CockpitMelonDll") -Force
+        $dll = Join-Path $game "Mods\$CockpitMelonDll"
         $models = Join-Path $game 'UserData\OthCockpit\models'
     }
+    Copy-Item (Join-Path $CockpitFiles (Split-Path $dll -Leaf)) $dll -Force
+    $script:OldCopies += @(Remove-OtherCopies $game 'OthCockpit' $dll)
     New-Item -ItemType Directory -Force -Path $models | Out-Null
     # Replace the models completely, so an update never leaves an old car's cockpit behind.
     Get-ChildItem -Path $models -Filter 'Car_*.glb' -File -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -466,6 +474,8 @@ function Install-Mod {
     }
 
     $loaderName = if ($hasBep) { 'BepInEx' } else { 'MelonLoader' }
+    $oldNote = ''
+    if ($script:OldCopies.Count -gt 0) { $oldNote = "Removed older copies (only one copy of a mod may load):`n  " + ($script:OldCopies -join "`n  ") + "`n`n" }
     $parts = @()
     if ($wheel) { $parts += 'wheel mod' }
     if ($cockpit) { $parts += "cockpit view ($cars car$(if ($cars -ne 1) { 's' }))" }
@@ -483,7 +493,7 @@ function Install-Mod {
     }
     $steps = "FIRST START - please read:`n"
     for ($i = 0; $i -lt $list.Count; $i++) { $steps += "  $($i + 1). $($list[$i])`n" }
-    Show-Message ("Installed: $($parts -join ' + ') (mod loader: $loaderName)!`n`n$presetNote" + $steps +
+    Show-Message ("Installed: $($parts -join ' + ') (mod loader: $loaderName)!`n`n$oldNote$presetNote" + $steps +
         "`nLater starts are fast again. The README has the details.`n`nOpen the README now?") 'Information' 'YesNo' |
         ForEach-Object { if ($_ -eq 'Yes') { Start-Process notepad.exe (Join-Path $PackageDir 'README.txt') } }
 }
@@ -495,6 +505,37 @@ function Remove-Paths([string]$base, [string[]]$rels) {
         $p = Join-Path $base $rel
         if (Test-Path $p) { Remove-Item $p -Recurse -Force }
     }
+}
+
+# Every copy of a mod's DLL ($prefix = 'OthWheel' or 'OthCockpit'), under any name ("OthWheel.Melon (2).dll",
+# "OthWheel - Copy.dll") and in every folder a mod loader reads: Mods\ and Plugins\ (MelonLoader) and
+# BepInEx\plugins\, all with their subfolders. A copy left behind keeps the mod running after an uninstall
+# (2026-11-07: a player removed Mods\OthWheel.Melon.dll and F3 still opened the wheel menu).
+function Find-ModCopies([string]$game, [string]$prefix) {
+    $found = @()
+    foreach ($rel in @('Mods', 'Plugins', 'BepInEx\plugins')) {
+        $dir = Join-Path $game $rel
+        if (Test-Path $dir) {
+            $found += @(Get-ChildItem -Path $dir -Recurse -File -Filter "$prefix*.dll" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+        }
+    }
+    return $found
+}
+
+function Get-RelPath([string]$game, [string]$path) {
+    $root = $game.TrimEnd('\') + '\'
+    if ($path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $path.Substring($root.Length) }
+    return $path
+}
+
+# Install: delete every other copy of a mod, so exactly one (the one just installed) is left to load.
+function Remove-OtherCopies([string]$game, [string]$prefix, [string]$keep) {
+    $removed = @()
+    foreach ($f in @(Find-ModCopies $game $prefix)) {
+        if ($f -ieq $keep) { continue }
+        try { Remove-Item $f -Force; $removed += (Get-RelPath $game $f) } catch {}
+    }
+    return $removed
 }
 
 # $wheel / $cockpit: which mods to remove. $last: nothing of ours stays, so the install log and maybe the loader go too.
@@ -563,10 +604,14 @@ function Uninstall-Mod {
     $game = Find-Game
     Wait-GameClosed
 
-    $bepWheel = Test-Path (Join-Path $game "BepInEx\plugins\$BepDll")
-    $bepCockpit = Test-Path (Join-Path $game "BepInEx\plugins\$CockpitBepDll")
-    $melonWheel = Test-Path (Join-Path $game "Mods\$MelonDll")
-    $melonCockpit = Test-Path (Join-Path $game "Mods\$CockpitMelonDll")
+    # Every copy, not only the names the installer uses: renamed copies and ones in other folders load too.
+    $wheelCopies = @(Find-ModCopies $game 'OthWheel')
+    $cockpitCopies = @(Find-ModCopies $game 'OthCockpit')
+    $bepDir = (Join-Path $game 'BepInEx') + '\'
+    $bepWheel = @($wheelCopies | Where-Object { $_.StartsWith($bepDir, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+    $bepCockpit = @($cockpitCopies | Where-Object { $_.StartsWith($bepDir, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+    $melonWheel = @($wheelCopies | Where-Object { -not $_.StartsWith($bepDir, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+    $melonCockpit = @($cockpitCopies | Where-Object { -not $_.StartsWith($bepDir, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
     $bepLog = Test-Path (Join-Path $game 'BepInEx\OthWheel-install.txt')
     $melonLog = Test-Path (Join-Path $game 'UserData\OthWheel-install.txt')
     $hasWheel = $bepWheel -or $melonWheel
@@ -591,6 +636,12 @@ function Uninstall-Mod {
     $last = ($wheel -or -not $hasWheel) -and ($cockpit -or -not $hasCockpit)
     Ensure-WriteAccess $game
 
+    # First every copy of the chosen mods (so a renamed copy isn't mistaken for "another mod" below).
+    $toRemove = @()
+    if ($wheel) { $toRemove += $wheelCopies }
+    if ($cockpit) { $toRemove += $cockpitCopies }
+    foreach ($f in $toRemove) { try { Remove-Item $f -Force } catch {} }
+
     if ($bepWheel -or $bepCockpit -or $bepLog) { Uninstall-BepInEx $game $wheel $cockpit $last }
     if ($melonWheel -or $melonCockpit -or $melonLog) { Uninstall-MelonLoader $game $wheel $cockpit $last }
     if (-not $last) {
@@ -606,6 +657,19 @@ function Uninstall-Mod {
             if ($r -eq 'Yes' -and (Wait-PitHouseClosed 'It has to be closed to remove the profile.')) { Remove-Item $preset -Force; $presetNote = "`nThe Pit House profile was removed." }
         }
     }
+
+    # Check: nothing of the removed mods may be left that a loader would still load.
+    $left = @()
+    if ($wheel) { $left += @(Find-ModCopies $game 'OthWheel') }
+    if ($cockpit) { $left += @(Find-ModCopies $game 'OthCockpit') }
+    if ($left.Count -gt 0) {
+        Show-Message ("These files couldn't be deleted (is the game or another program still using them?):`n  " +
+            (($left | ForEach-Object { Get-RelPath $game $_ }) -join "`n  ") +
+            "`n`nThe mod keeps loading while they are there. Delete them by hand. Game folder:`n$game") 'Warning' | Out-Null
+    }
+    $usual = @("Mods\$MelonDll", "Mods\$CockpitMelonDll", "BepInEx\plugins\$BepDll", "BepInEx\plugins\$CockpitBepDll")
+    $extra = @($toRemove | Where-Object { -not (Test-Path $_) } | ForEach-Object { Get-RelPath $game $_ } | Where-Object { $_ -notin $usual })
+    if ($extra.Count -gt 0) { $presetNote += "`n`nAlso removed these other copies:`n  " + ($extra -join "`n  ") }
 
     $removed = @()
     if ($wheel) { $removed += 'wheel mod' }

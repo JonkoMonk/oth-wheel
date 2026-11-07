@@ -90,7 +90,7 @@ public class StatusBehaviour : MonoBehaviour
         Devices.Shutdown();
     }
 
-    GUIStyle _style;
+    GUIStyle _style, _warnStyle;
 
     // "Wheel button N → Action" in the top-left corner, to find out which number a button has.
     void OnGUI()
@@ -119,6 +119,15 @@ public class StatusBehaviour : MonoBehaviour
                 // With messages off only a problem is shown (everything but the "all fine" line).
                 bool fine = Devices.Active != null && Devices.Active.Ffb?.Direction != 0 && Ffb.Ready;
                 if (Settings.ShowMessages.Value || !fine) GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
+            }
+            // Another copy of the mod loads too (left behind by an uninstall, or installed for both loaders):
+            // always shown, for 30 s from the first time in a car.
+            string dup = Copies.Warning;
+            if (dup != null && _bannerFrom >= 0f && now >= _bannerFrom && now < _bannerFrom + 30f)
+            {
+                _warnStyle ??= new GUIStyle(_style) { fontSize = 24, wordWrap = true };
+                _warnStyle.normal.textColor = new Color(1f, 0.55f, 0.2f);
+                GUI.Label(new Rect(30, 130, Mathf.Min(1600, Screen.width - 60), 120), dup, _warnStyle);
             }
             Wizard.OnGUI();
             Menu.OnGUI();

@@ -52,6 +52,10 @@ BepInEx (BepInEx 6 for Unity IL2CPP, e.g. be.789)
 @cockpit
   Cockpit settings: <game folder>\BepInEx\config\jonkomonk.oth.cockpit.cfg
 @end
+
+To remove: run Uninstall.bat (it finds every copy, also renamed ones
+and ones in the other loader's folder), or delete the files and
+folders listed above, for both loaders.
 @wheel
 
 Install.bat also switches on one hidden game setting

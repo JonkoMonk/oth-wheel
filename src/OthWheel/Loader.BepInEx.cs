@@ -12,7 +12,8 @@ public class BepInExEntry : BasePlugin
     public override void Load()
     {
         Plugin.SetLog(s => Log.LogInfo(s), s => Log.LogWarning(s), s => Log.LogError(s));
-        ModPaths.Init("BepInEx", Paths.ConfigPath, Path.Combine(Paths.ConfigPath, "OthWheel"), Path.Combine(Paths.BepInExRootPath, "LogOutput.log"));
+        ModPaths.Init("BepInEx", Paths.ConfigPath, Path.Combine(Paths.ConfigPath, "OthWheel"), Path.Combine(Paths.BepInExRootPath, "LogOutput.log"),
+            Paths.GameRootPath, typeof(BepInExEntry).Assembly.Location);
         Plugin.Start(new Harmony(Plugin.Guid));
         AddComponent<StatusBehaviour>();
         Plugin.Info($"loaded under BepInEx, enabled={Settings.Enabled.Value}");

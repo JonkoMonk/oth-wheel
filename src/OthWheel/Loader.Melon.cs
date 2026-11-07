@@ -17,7 +17,10 @@ public class MelonEntry : MelonMod
         var log = LoggerInstance;
         Plugin.SetLog(s => log.Msg(s), s => log.Warning(s), s => log.Error(s));
         var dataDir = Path.Combine(MelonEnvironment.UserDataDirectory, "OthWheel");
-        ModPaths.Init("MelonLoader", dataDir, dataDir, Path.Combine(MelonEnvironment.MelonLoaderDirectory, "Latest.log"));
+        string dll = MelonAssembly?.Location;
+        if (string.IsNullOrEmpty(dll)) dll = typeof(MelonEntry).Assembly.Location;
+        ModPaths.Init("MelonLoader", dataDir, dataDir, Path.Combine(MelonEnvironment.MelonLoaderDirectory, "Latest.log"),
+            MelonEnvironment.GameRootDirectory, dll);
         // Our hooks are installed by hand (no [HarmonyPatch] attributes), on MelonLoader's instance for this mod.
         Plugin.Start(HarmonyInstance);
     }
