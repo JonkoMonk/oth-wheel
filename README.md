@@ -2,11 +2,13 @@
 
 Drive **over the hill** (Funselektor, Steam) with a real wheel: steering, throttle, brake, clutch, H-shifter, wheel buttons, and **force feedback calculated from the car's tyres** — you feel grip, bumps, slides and crashes. Single player and co-op.
 
-Watch it in action: [mod spotlight video](https://youtu.be/rHvPhiTygKQ). Download: [OTH Wheel on Nexus Mods](https://www.nexusmods.com/overthehill/mods/83).
+Watch it in action: [mod spotlight video](https://youtu.be/rHvPhiTygKQ) and the [November update](https://youtu.be/gRxpiDNqJK0) (smart camera, wheel in the menus, mirrors). Download: [OTH Wheel on Nexus Mods](https://www.nexusmods.com/overthehill/mods/83).
 
 - **Moza R3** (ES rim, SR-P Lite pedals, HGP shifter): works right away.
 - **Any other wheel** (Logitech, Thrustmaster, Fanatec, Moza, Simagic, …): an in-game setup wizard (**F3**) asks you to turn the wheel, press the pedals and pick your buttons. About 2 minutes.
 - **Smart camera** (1.1.0): the third-person camera picks a good off-road view by itself (side-on when crawling, higher downhill and over crests, the downhill side along a mountain, no swinging round when reversing, zooms in when trees block the view); your own camera moves always win. `[SmartCamera]` in the settings file.
+- **Wheel in the menus** (1.1.0): B = back and A = OK in every menu; the D-pad moves the map, looks around in photo mode and steps through the winch points; hold S1 for the game's quick action wheel.
+- **Every feature on or off:** the smart camera, force feedback, stalling, H-shifter, wheel buttons and on-screen messages each have their own switch, in the F3 menu or the settings file (`UserData\OthWheel\jonkomonk.oth.wheel.cfg`).
 
 [**OTH Cockpit**](https://github.com/JonkoMonk/oth-cockpit) (alpha), a first-person view with a working interior whose steering wheel turns 1:1 with yours, is a separate mod that uses the same installer ([OTH Cockpit on Nexus Mods](https://www.nexusmods.com/overthehill/mods/90)).
 
