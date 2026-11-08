@@ -292,6 +292,10 @@ mod picks a good view by itself, made for driving off-road:
   - slow off-road driving: a bit to the side of and above the car,
     closer to straight behind when you go fast
   - going downhill or over a crest: higher, so you see the ground ahead
+    (downhill it may go above your highest setting: F3 > Camera >
+    "Downhill extra height")
+  - it never sits in the ground: the camera and the line to the car
+    stay at least 1 m above it (F3 > Camera > "Stay above the ground")
   - along the side of a mountain: round to the downhill side, looking
     back up at the car (setting SideSlope)
   - reversing: it doesn't swing round; it rises a little so you see
@@ -394,7 +398,8 @@ Every setting has a short explanation above it. Examples:
                         Uphill / Off), Strength, Speed, ReturnAfter,
                         Reverse, ZoomInWhenBlocked, SideReturn,
                         Distance, DpadSpeed / DpadMaxSpeed,
-                        ReverseKeepsYourTurn, ReverseRemembers
+                        ReverseKeepsYourTurn, ReverseRemembers,
+                        DownhillExtra, GroundClearance
   [Map] ............... OpenOnCar (the map opens on your car),
                         DpadSpeed (how slowly the D-pad starts)
   PhotoLookSpeed ...... photo mode: D-pad look speed

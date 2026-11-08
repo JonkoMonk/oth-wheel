@@ -19,6 +19,7 @@ internal static class Menu
         public Func<string> Value;
         public Action<int> Change;   // -1 / +1 (left / right)
         public Action Open;          // right arrow on a section or command
+        public bool Repeat = true;   // held left/right keeps changing it (numbers); off for on/off and choices
     }
 
     enum Page { Main, Ffb, Steering, Clutch, Camera, Buttons, Remove }
@@ -41,6 +42,7 @@ internal static class Menu
         _sel = 0;
         _waitAction = null;
         foreach (var vk in Keys) _keyDown[vk] = Win32.IsKeyDown(vk);   // a key held while opening doesn't count
+        _repeatAt.Clear();
         Plugin.Info("settings menu opened");
     }
 
@@ -89,8 +91,8 @@ internal static class Menu
         if (Pressed(VK_UP, now)) _sel = (_sel + items.Count - 1) % items.Count;
         if (Pressed(VK_DOWN, now)) _sel = (_sel + 1) % items.Count;
         var it = items[_sel];
-        bool right = Pressed(VK_RIGHT, now, it.Change != null);
-        bool left = Pressed(VK_LEFT, now, it.Change != null);
+        bool right = Pressed(VK_RIGHT, now, it.Change != null && it.Repeat);
+        bool left = Pressed(VK_LEFT, now, it.Change != null && it.Repeat);
         if (Pressed(VK_BACK, now, false)) { Back(); return; }
         if (Pressed(VK_DELETE, now, false) && _page == Page.Buttons) ClearButton(it);
 
@@ -109,12 +111,29 @@ internal static class Menu
         _lastSel[_page] = _sel;
         _page = p;
         _sel = p == Page.Main && _lastSel.TryGetValue(p, out int s) ? s : 1;   // 0 is "Back" in sections
+        // Nothing acts on the new page until every key is let go: a held D-pad right opened "Force feedback" and
+        // its auto-repeat then switched force feedback off (1.1.2, JonkoMonk's log 2026-11-08).
+        foreach (var vk in Keys) _keyDown[vk] = true;
+        _repeatAt.Clear();
     }
 
     static void Back()
     {
         if (_page == Page.Main) Close();
         else Go(Page.Main);
+    }
+
+    const string DiscordShort = "discord.gg/h2hXcYgkpE";
+
+    static string OpenDiscord()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://" + DiscordShort) { UseShellExecute = true });
+            Plugin.Info("opened the Discord invite in the browser");
+            return "Opened in your web browser (alt-tab to it).";
+        }
+        catch (Exception e) { return $"Couldn't open the browser ({e.Message}). Type {DiscordShort} in it."; }
     }
 
     static void Note(string text)
@@ -146,6 +165,12 @@ internal static class Menu
                     Open = () => { Close(); Wizard.OpenTools(Time.unscaledTime); },
                 });
                 list.Add(Section("Remove the mod", Page.Remove, "Which files to delete to remove the wheel mod completely, and a button that opens their folder."));
+                list.Add(new Item
+                {
+                    Label = "Questions? Discord", Value = () => DiscordShort,
+                    Open = () => Note(OpenDiscord()),
+                    Help = $"Ask in the JonkoMonk Discord (#wheel-help): {DiscordShort}. Right arrow opens it in your web browser.",
+                });
                 list.Add(new Item { Label = "Close", Open = Close, Help = $"Or press {Settings.SetupKey.Value}." });
                 break;
 
@@ -227,7 +252,9 @@ internal static class Menu
                 });
                 list.Add(Num("Side angle", SmartCamera.SideAngle, 0f, 60f, 5f, v => $"{v:0}°", "How far round to the side it sits when crawling (0 = straight behind). Closer to behind when fast; slopes add to it."));
                 list.Add(Num("Height", SmartCamera.Height, 0f, 1f, 0.05f, Pct, "Height on the flat: 0 = lowest, 100% = straight down from above. Slopes add to it."));
-                list.Add(Num("Highest", SmartCamera.MaxHeight, 0.2f, 1f, 0.05f, Pct, "It never goes higher than this (100% = straight down from above)."));
+                list.Add(Num("Highest", SmartCamera.MaxHeight, 0.2f, 1f, 0.05f, Pct, "It doesn't go higher than this (100% = straight down from above), except downhill (below) and to stay out of the ground."));
+                list.Add(Num("Downhill extra height", SmartCamera.DownhillExtra, 0f, 0.6f, 0.05f, Pct, "Going downhill it may rise this much above Highest, to look over the car down the slope (0 = Highest is the limit)."));
+                list.Add(Num("Stay above the ground", SmartCamera.GroundClearance, 0f, 3f, 0.25f, v => v <= 0f ? "Off" : $"{v:0.00} m", "The camera, and the line from the car to it, stay at least this far above the ground; it rises above Highest when it has to."));
                 list.Add(Num("Distance", SmartCamera.Distance, 0.5f, 2f, 0.05f, v => $"{v:0.00}x",
                     "How far behind: 0.5x = closest, 1x = the game's normal, 2x = farthest. A little closer when crawling or among trees, further when fast or downhill."));
                 list.Add(Num("Slope moves", SmartCamera.Strength, 0f, 1.5f, 0.1f, Pct, "How much it moves for slopes, crests, mountainsides and speed (0 = only stays behind you)."));
@@ -280,18 +307,19 @@ internal static class Menu
 
     static Item Bool(string label, ConfigEntry<bool> e, string help) => new()
     {
-        Label = label, Help = help, Value = () => e.Value ? "On" : "Off",
-        Change = _ => e.Value = !e.Value,
+        Label = label, Help = help, Value = () => e.Value ? "On" : "Off", Repeat = false,
+        Change = _ => { e.Value = !e.Value; Plugin.Info($"menu: {label} {(e.Value ? "on" : "off")}"); },
     };
 
     static Item Choice<T>(string label, ConfigEntry<T> e, string help) where T : struct, Enum => new()
     {
-        Label = label, Help = help, Value = () => e.Value.ToString(),
+        Label = label, Help = help, Value = () => e.Value.ToString(), Repeat = false,
         Change = dir =>
         {
             var all = (T[])Enum.GetValues(typeof(T));
             int i = Array.IndexOf(all, e.Value);
             e.Value = all[(i + dir + all.Length) % all.Length];
+            Plugin.Info($"menu: {label} {e.Value}");
         },
     };
 

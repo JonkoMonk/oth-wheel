@@ -7,6 +7,20 @@ Version numbers: MINOR (1.X) = new feature, PATCH (1.0.X) = fixes.
 - 1.1.0 (rest): "VR recenter" wheel-button action (for OTH VR)
 - 1.2.0: clutch required (optional: shifting without the clutch grinds)
 
+## 1.1.3 (2026-11-08)
+
+- Smart camera, downhill: it no longer sits half in the hill behind the car. The camera, and the line from the car
+  to it, now stay at least 1 m above the ground, going higher than "Highest" when they have to (F3 > Camera >
+  "Stay above the ground"). Going downhill it also rises sooner and may go above "Highest" by up to 30%, to look
+  over the car down the slope (F3 > Camera > "Downhill extra height"; 0 = Highest is the limit everywhere).
+- Fix: holding the D-pad (or an arrow key) in the F3 menu could switch force feedback off by accident: a held
+  right opened the Force feedback page and kept going, onto the on/off switch. A new page now waits until you let
+  go, and on/off switches and choices change once per press. If force feedback is off, the message at the start
+  of a drive now says so (also with on-screen messages turned off).
+- F3 menu: a "Questions? Discord" line on the main page (opens the JonkoMonk Discord invite in your browser).
+- Quieter log: the map line "circle still being moved back" is written once per game session (it came on every
+  first map after loading in; harmless, the mod already wins).
+
 ## 1.1.2 (2026-11-08)
 
 - B goes back out of the winch and the inventory when you opened them from the quick action wheel (it pressed

@@ -140,7 +140,7 @@ internal static unsafe class GameMenus
         {
             if (_mapOpenedAt >= 0f) RestorePanSpeed();
             _cursorSetTo = null; _mouseTookOver = false; _mapOpenedAt = -100f; _mapCentredOnCar = false;
-            _mapTouched = false; _mapRecentres = 0; _circleMoves = 0; _lateMovesLogged = 0; _putBackLogged = 0; _dpadAt = -100f;
+            _mapTouched = false; _mapRecentres = 0; _circleMoves = 0; _putBackLogged = 0; _dpadAt = -100f;
             return;
         }
         if (_mapOpenedAt < 0f)
@@ -466,11 +466,12 @@ internal static unsafe class GameMenus
         var to = MapCursorSnapper.ScreenToWorldOnCanvas(circle, middle, cam);
         circle.position += to - from;
         float t = Time.unscaledTime - _mapOpenedAt;
-        // Still being put back after half a second: log it a few times per opening (what moves it, and where).
-        if (t > 0.5f && _lateMovesLogged < 3)
+        // Still being put back after half a second: the game does this on every first map after loading in
+        // (harmless, the mod wins), so it's logged once per game session (it filled the log in 1.1.2).
+        if (t > 0.5f && !_lateMoveLogged)
         {
-            _lateMovesLogged++;
-            Plugin.Info($"map: circle still being moved back ({_circleMoves + 1} moves, in {(late ? "LateUpdate" : "Update")}, was at {rect.center.x:0},{rect.center.y:0}, {t:0.00} s after opening)");
+            _lateMoveLogged = true;
+            Plugin.Info($"map: circle still being moved back ({_circleMoves + 1} moves, in {(late ? "LateUpdate" : "Update")}, was at {rect.center.x:0},{rect.center.y:0}, {t:0.00} s after opening; logged once per session)");
         }
         // Logged for every opening (a few times): if something keeps moving the circle back, it shows here.
         if (_circleMoves++ < 4)
@@ -478,7 +479,8 @@ internal static unsafe class GameMenus
                         $"{Time.unscaledTime - _mapOpenedAt:0.00} s after opening, map '{map.name}' {map.GetInstanceID()}, " +
                         $"canvas {(canvas != null ? canvas.renderMode.ToString() : "none")}, pointer {(Cursor.visible ? "visible" : "hidden")} {Cursor.lockState})");
     }
-    static int _circleMoves, _lateMovesLogged;
+    static int _circleMoves;
+    static bool _lateMoveLogged;
 
     // Opened while driving: centre the map on the car, once, a moment after opening (after the game's own setup).
     public static ConfigEntry<bool> MapOpensOnCar;

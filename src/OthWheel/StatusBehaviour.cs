@@ -111,13 +111,15 @@ public class StatusBehaviour : MonoBehaviour
                     ? Devices.Connected.Count == 0
                         ? $"Wheel mod {Plugin.Version}: NO wheel found. Plug it in and start its driver software."
                         : $"Wheel mod {Plugin.Version}: this wheel isn't set up yet. Press {key} for the setup wizard."
+                    : !Ffb.Enabled.Value
+                        ? $"Wheel mod {Plugin.Version} active ({Devices.Active.Name}). Force feedback is OFF: {key} > Force feedback to turn it on."
                     : Devices.Active.Ffb?.Direction == 0
                         ? $"Wheel mod {Plugin.Version} active ({Devices.Active.Name}). Force feedback not tested yet: {key} > force feedback test."
                         : Ffb.Ready
                             ? $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}, force feedback on"
                             : $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}. Force feedback NOT connected yet: click into the game window.";
                 // With messages off only a problem is shown (everything but the "all fine" line).
-                bool fine = Devices.Active != null && Devices.Active.Ffb?.Direction != 0 && Ffb.Ready;
+                bool fine = Devices.Active != null && Ffb.Enabled.Value && Devices.Active.Ffb?.Direction != 0 && Ffb.Ready;
                 if (Settings.ShowMessages.Value || !fine) GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
             }
             // Another copy of the mod loads too (left behind by an uninstall, or installed for both loaders):
