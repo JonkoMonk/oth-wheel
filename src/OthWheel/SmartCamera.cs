@@ -33,7 +33,7 @@ internal static class SmartCamera
     public static ConfigEntry<bool> Enabled, Log;
     public static ConfigEntry<float> Strength, Speed, ReturnAfter, DpadSpeed, DpadMaxSpeed, SideAngle, Height, MaxHeight;
     public static ConfigEntry<Side> SideSlope;
-    public static ConfigEntry<bool> Reverse, ZoomInWhenBlocked, SideReturn;
+    public static ConfigEntry<bool> Reverse, ZoomInWhenBlocked, SideReturn, ReverseKeepsYourTurn, ReverseRemembers;
     public static ConfigEntry<float> Distance;
 
     public static void Bind(ConfigFile cfg)
@@ -56,6 +56,11 @@ internal static class SmartCamera
             "Driving along the side of a mountain: Downhill = the camera goes round to the downhill side, looking back up at the car; " +
             "Uphill = it goes to the uphill side, looking over the car down the slope; Off = stays behind.");
         Reverse = cfg.Bind(s, "Reverse", true, "Reversing: the camera rises a little so you see the ground behind the car (it never swings round).");
+        ReverseKeepsYourTurn = cfg.Bind(s, "ReverseKeepsYourTurn", true,
+            "Reversing: when you turn the camera yourself, it stays that way until you drive forward again (to look forward or back).");
+        ReverseRemembers = cfg.Bind(s, "ReverseRemembers", true,
+            "With ReverseKeepsYourTurn: the next time you reverse, the camera goes back to the view you chose last time you reversed. " +
+            "false = every reverse starts with the normal view.");
         ZoomInWhenBlocked = cfg.Bind(s, "ZoomInWhenBlocked", true,
             "When trees, rocks or buildings come between the car and the camera, it zooms in until you can see the car again.");
         SideReturn = cfg.Bind(s, "SideReturn", true,
@@ -181,6 +186,19 @@ internal static class SmartCamera
             float angle = SideAngle.Value * (0.35f + 0.65f * slowness) + 25f * steep
                         + (SideSlope.Value != Side.Off ? 30f * sideSteep : 0f);
             float wantX = reversing ? 0.5f * _sideSign * angle : _sideSign * Mathf.Clamp(angle * str, 0f, 60f);
+            // Reversing: a turn of your own is kept until you drive forward again (stopping in between keeps it).
+            if (fwdSpeed > 0.8f && _revHold && !ReverseGear(car))
+            {
+                _revHold = false;
+                if (ReverseRemembers.Value) _revLastX = x.Value;
+                Plugin.Info("smart cam: driving forward, your reversing view is let go");
+            }
+            // In reverse = rolling backwards, or reverse gear in (the turn is often made before the car moves:
+            // 2026-11-07 he turned to the front with R in at standstill, and 2.5 s later it swung back).
+            bool inReverse = reversing || (ReverseGear(car) && fwdSpeed < 0.5f);
+            if (inReverse && own && ReverseKeepsYourTurn.Value && !_revHold) { _revHold = true; Plugin.Info("smart cam: reversing, keeping your camera turn"); }
+            if (!ReverseKeepsYourTurn.Value) _revHold = false;
+            if (inReverse && !_revHold && ReverseKeepsYourTurn.Value && ReverseRemembers.Value && !float.IsNaN(_revLastX)) wantX = _revLastX;
             // Downhill: higher, to look over the car at the ground ahead. Uphill: hardly higher (from above you
             // only saw the car roof, a top-down view); you look up the hill at the crest instead, which raises it.
             float down = slope < 0f ? steep : 0f, up = slope > 0f ? steep : 0f;
@@ -218,7 +236,8 @@ internal static class SmartCamera
             // Also standing still right after the side button, and on the menu's Camera page (to try settings).
             float err = Mathf.DeltaAngle(x.Value, wantX);
             bool turnNow = now < _turnUntil || Menu.OnCameraPage;
-            if (_idle > ReturnAfter.Value && (moving || turnNow))
+            bool holdYours = _revHold && !turnNow;
+            if (_idle > ReturnAfter.Value && (moving || turnNow) && !holdYours)
             {
                 _engage = Mathf.Min(1f, _engage + dt);
                 x.Value = Wrap(x.Value + err * k * _engage, x);
@@ -298,6 +317,8 @@ internal static class SmartCamera
     static string _blockedBy = "";
     static bool _blockCheckBroken;
     static float _mySide = 1f, _flatFor, _turnUntil, _distanceOf = float.NaN;   // your side (+ = left), from the button
+    static bool _revHold;                  // reversing with a camera turn of your own: keep it
+    static float _revLastX = float.NaN;     // the heading you chose last time you reversed (ReverseRemembers)
 
     // Wheel button "CameraSide": the camera goes to the other side of the car, and that becomes your side.
     public static string ToggleSide()
@@ -421,6 +442,15 @@ internal static class SmartCamera
         }
         catch (Exception e) { Plugin.ErrorOnce("smart camera terrain", e); }
         return Physics.Raycast(p + Vector3.up * 30f, Vector3.down, out var hit, 80f, ~0, QueryTriggerInteraction.Ignore) ? hit.point.y : p.y;
+    }
+
+    static bool _gearBroken;
+
+    static bool ReverseGear(VPVehicleController car)
+    {
+        if (_gearBroken) return false;
+        try { return car.data.Get(Channel.Vehicle, VehicleData.GearboxGear) < 0; }
+        catch (Exception e) { _gearBroken = true; Plugin.ErrorOnce("smart camera reverse gear", e); return false; }
     }
 
     static VPVehicleController Car()

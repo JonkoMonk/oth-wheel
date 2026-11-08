@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.InputSystem;
 #if MELON
 using Il2Cpp;   // MelonLoader puts the game's namespace-less classes here
 #endif
@@ -59,10 +60,32 @@ internal static unsafe class GameMenus
         }
         catch (Exception e) { Plugin.Error($"hook failed RadialMenu.Update: {e.GetType().Name}: {e.Message}"); }
         Patch(h, typeof(MapController), "Update", nameof(AfterMapUpdate), "map zoom");
+        try
+        {
+            var m = HarmonyLib.AccessTools.Method(typeof(MapCursorSnapper), "LateUpdate");
+            if (m == null) Plugin.Warn("not found: MapCursorSnapper.LateUpdate (game update?), the map circle is only centred in Update");
+            else
+            {
+                h.Patch(m, prefix: new HarmonyLib.HarmonyMethod(typeof(GameMenus), nameof(BeforeSnapperLateUpdate)));
+                Plugin.Info("hooked MapCursorSnapper.LateUpdate (map circle in the middle)");
+            }
+        }
+        catch (Exception e) { Plugin.Error($"hook failed MapCursorSnapper.LateUpdate: {e.GetType().Name}: {e.Message}"); }
         Patch(h, typeof(StateCarWinchPointSelection), "Open", nameof(AfterCarWinchOpen), "winch points on the car");
         Patch(h, typeof(StateCarWinchPointSelection), "Close", nameof(AfterWinchClose), "winch points on the car");
         Patch(h, typeof(StateWorldWinchPointSelection), "Open", nameof(AfterWorldWinchOpen), "winch anchor points");
         Patch(h, typeof(StateWorldWinchPointSelection), "Close", nameof(AfterWinchClose), "winch anchor points");
+        Patch(h, typeof(StateMerchantMenu), "Open", nameof(AfterMerchantOpen), "the car menu's tabs");
+        Patch(h, typeof(StateMerchantMenu), "Close", nameof(AfterMerchantClose), "the car menu's tabs");
+    }
+
+    public static void Bind(ConfigFile cfg)
+    {
+        MapOpensOnCar = cfg.Bind("Map", "OpenOnCar", true, "Opening the map while driving: it opens centred on your car.");
+        MapDpadSpeed = cfg.Bind("Map", "DpadSpeed", 0.35f,
+            "How fast the D-pad moves the map at first, as a share of the game's speed (0.35 = 35%); held longer it speeds up to the full speed.");
+        PedalsSwitchTabs = cfg.Bind("Buttons", "PedalsSwitchTabs", true,
+            "In the car selection / customisation menu: throttle = next tab, brake = previous tab (the game's E / Q).");
     }
 
     static void Patch(HarmonyLib.Harmony h, Type t, string method, string postfix, string what)
@@ -88,47 +111,105 @@ internal static unsafe class GameMenus
             Plugin.Info($"game controls: {Now}" + (_mapName != null ? $" (input map {_mapName})" : ""));
         }
         UpdateQuickMenu(now);
-        KeepMapCursorCentred();
+        UpdateMerchantTabs(now);
+        WatchMapPointer(now);
+        _prevContext = Now;
     }
 
-    // On the map the selection circle follows the mouse pointer, so with the wheel it sat wherever the mouse
-    // was left. While the map is open the game's own circle mode is Centered (AfterMapUpdate; since game
-    // 26.10.30 only a mouse click moved it there otherwise) and the pointer is held in the middle of the game
-    // window, where A clicks (the D-pad moves the map under it, zoom keeps the middle in place). When the real
-    // mouse moves, both are left alone until the map is opened again.
-    // The game moves the pointer once itself when the map opens, so no checks for the first second, and a
-    // bumped desk isn't the mouse (2026-11-06: 4-15 px): it takes 40 px of travel within half a second.
-    const float MouseTakeOverPixels = 40f, MouseTakeOverSeconds = 0.5f;
-    static (int X, int Y)? _cursorSetTo;
-    static bool _mouseTookOver;
-    static float _mapOpenedAt = -100f, _mouseTravel, _mouseTravelSince;
+    static Context _prevContext = Context.Unknown;
 
-    static void KeepMapCursorCentred()
+    // --- map: circle, pointer, opening on the car ---------------------------------------------------
+    //
+    // On the map the selection circle follows the mouse pointer (game circle mode FollowPointer). With the wheel
+    // we switch the game to its Centered mode (AfterMapUpdate). Found in the game's code (2026-11-07): Centered
+    // mode does NOT move the circle to the middle; it leaves the circle where the pointer last put it and moves
+    // the map under it. So the circle sat wherever the mouse was left, and only got to the middle after A
+    // (a click with the pointer held in the middle). Now the mod puts the circle in the middle itself.
+    // The pointer: A on the map is a left click, so the pointer is put in the middle when the map opens and
+    // right before A clicks. It used to be held there every frame and every frame's few pixels of difference
+    // were added up, so a small drift counted as "the mouse moved" after one second. Now only a real move
+    // (MouseTakeOverPixels away from where the mod put it) hands the map to the mouse (FollowPointer).
+    const float MouseTakeOverPixels = 60f;
+    static (int X, int Y)? _cursorSetTo;
+    static bool _mouseTookOver, _mapCentredOnCar, _mapFromDriving;
+    static float _mapOpenedAt = -100f;
+
+    static void WatchMapPointer(float now)
     {
-        if (Now != Context.MapScreen || !Win32.GameHasFocus())
+        if (Now != Context.MapScreen)
         {
-            _cursorSetTo = null;
-            if (Now != Context.MapScreen) { _mouseTookOver = false; _mapOpenedAt = -100f; _mouseTravel = 0f; }
+            if (_mapOpenedAt >= 0f) RestorePanSpeed();
+            _cursorSetTo = null; _mouseTookOver = false; _mapOpenedAt = -100f; _mapCentredOnCar = false;
+            _mapTouched = false; _mapRecentres = 0; _circleMoves = 0; _lateMovesLogged = 0; _putBackLogged = 0; _dpadAt = -100f;
             return;
         }
-        float now = Time.unscaledTime;
-        if (_mapOpenedAt < 0f) _mapOpenedAt = now;
-        if (_mouseTookOver) return;
+        if (_mapOpenedAt < 0f)
+        {
+            _mapOpenedAt = now;
+            // Opened while driving or from a menu (M, the map button, the quick action wheel, the menu after loading
+            // in): open it on the car. The first map after loading in comes from a menu and was left off-centre
+            // (JonkoMonk, 2026-11-07). Not straight from a loading screen.
+            _mapFromDriving = _prevContext is Context.Driving or Context.QuickMenu or Context.Menu;
+            Plugin.Info($"map: opened from {_prevContext}, pointer {(Cursor.visible ? "visible" : "hidden")} {Cursor.lockState}");
+        }
+        if (Mouse.current != null && Mouse.current.delta.ReadValue().sqrMagnitude > 4f) _realMouseAt = now;
+        if (Buttons.HeldDpad != Vector2.zero || Buttons.HeldZoom != 0) { _dpadAt = now; if (now - _mapOpenedAt > 0.15f) _mapTouched = true; }
+        if (!Win32.GameHasFocus()) return;
+        if (_mouseTookOver)
+        {
+            // The wheel again (D-pad) and the mouse is still: back to the circle in the middle.
+            if (Buttons.HeldDpad != Vector2.zero)
+            {
+                _mouseTookOver = false;
+                _cursorSetTo = null;
+                Plugin.Info("map: D-pad used, the circle is back in the middle");
+            }
+            else return;
+        }
         var centre = Win32.GameWindowCentre();
         if (centre == null) return;
         var cur = Win32.CursorPos();
-        if (_cursorSetTo != null && now - _mapOpenedAt > 1f)
+        // The game moves the pointer once itself right after the map opens: keep putting it back for a second.
+        if (now - _mapOpenedAt < 1f || _cursorSetTo == null)
         {
-            if (now - _mouseTravelSince > MouseTakeOverSeconds) { _mouseTravel = 0f; _mouseTravelSince = now; }
-            _mouseTravel += Mathf.Sqrt(Mathf.Pow(cur.X - _cursorSetTo.Value.X, 2f) + Mathf.Pow(cur.Y - _cursorSetTo.Value.Y, 2f));
-        }
-        if (_mouseTravel > MouseTakeOverPixels)
-        {
-            _mouseTookOver = true;
-            Plugin.Info($"map: mouse moved ({cur.X},{cur.Y} instead of {_cursorSetTo.Value.X},{_cursorSetTo.Value.Y}), no longer keeping the pointer in the middle");
+            if (cur != centre.Value) Win32.MoveCursor(centre.Value.X, centre.Value.Y);
+            _cursorSetTo = centre;
             return;
         }
-        if (cur != centre.Value) Win32.MoveCursor(centre.Value.X, centre.Value.Y);
+        float dx = cur.X - _cursorSetTo.Value.X, dy = cur.Y - _cursorSetTo.Value.Y;
+        if (dx * dx + dy * dy > MouseTakeOverPixels * MouseTakeOverPixels)
+        {
+            // Only a mouse that really moved takes over: on the first map after loading in the pointer jumped
+            // 87 px by itself 8 s after opening (2026-11-07 log), and the circle went with it. Unity's mouse delta
+            // wasn't enough to tell (retest: 64 px "move" while only the D-pad was used), so also not within a
+            // second of the D-pad or zoom buttons. (Build 3 also refused while the game hides the pointer, but the
+            // game hides it on every map for a wheel player, so a real mouse never got the circle: 2026-11-08 test.)
+            if (now - _realMouseAt > 0.5f || now - _dpadAt < 1f)
+            {
+                if (_putBackLogged++ < 3)
+                    Plugin.Info($"map: the pointer moved without the mouse ({cur.X},{cur.Y}, {now - _mapOpenedAt:0.0} s after opening; " +
+                                $"last mouse move {now - _realMouseAt:0.0} s ago, D-pad {now - _dpadAt:0.0} s ago), put back in the middle");
+                Win32.MoveCursor(centre.Value.X, centre.Value.Y);
+                _cursorSetTo = centre;
+                return;
+            }
+            _mouseTookOver = true;
+            Plugin.Info($"map: mouse moved ({cur.X},{cur.Y} instead of {_cursorSetTo.Value.X},{_cursorSetTo.Value.Y}, " +
+                        $"{now - _mapOpenedAt:0.0} s after opening), the circle follows the mouse now");
+        }
+    }
+
+    static float _realMouseAt = -100f, _dpadAt = -100f;
+    static bool _mapTouched;
+    static int _putBackLogged;
+
+    // Right before A clicks on the map: pointer to the middle, where the circle is.
+    public static void PointerToMapCentre()
+    {
+        if (Now != Context.MapScreen || _mouseTookOver) return;
+        var centre = Win32.GameWindowCentre();
+        if (centre == null) return;
+        Win32.MoveCursor(centre.Value.X, centre.Value.Y);
         _cursorSetTo = centre;
     }
 
@@ -160,7 +241,9 @@ internal static unsafe class GameMenus
                 GameInput.Map.PhotoModeFreeCamera => Context.PhotoCamera,
                 GameInput.Map.MapScreen => Context.MapScreen,
                 GameInput.Map.MusicMenu => Context.Music,
-                _ => Context.Other,
+                // Newer menus (game 26.10.30: UIWithCameraZoomOrbitAndMouse = winch and inventory from the quick
+                // action wheel) are menus too, so B = Escape there. Before, B pressed the winch key in them.
+                _ => _mapName.StartsWith("UI") ? Context.Menu : Context.Other,
             };
         }
         catch (Exception e) { _nextMapRead = Time.unscaledTime + 1f; Plugin.ErrorOnce("input map", e); return Context.Unknown; }
@@ -202,7 +285,7 @@ internal static unsafe class GameMenus
             ReleaseQ();
             // Q works as a toggle in some setups: if the wheel is still open shortly after, tap Q once more.
             _retapAt = now + 0.25f;
-            return "Quick menu: OK";
+            return null;
         }
         if (Now is not (Context.Driving or Context.Unknown)) return "Quick menu: only while driving";
         Win32.Key(VK_Q, true);
@@ -313,6 +396,8 @@ internal static unsafe class GameMenus
         {
             _mapCtl = __instance;
             KeepCircleMode(__instance);
+            OpenOnCar(__instance);
+            DpadPanSpeed(__instance);
             int dir = Buttons.HeldZoom;
             if (dir == 0 || Now != Context.MapScreen) return;
             var rect = __instance.mapRect;
@@ -346,8 +431,144 @@ internal static unsafe class GameMenus
             if (snapper == null) return;
             var wanted = _mouseTookOver ? MapCursorSnapper.CursorMode.FollowPointer : MapCursorSnapper.CursorMode.Centered;
             if (snapper.mode != wanted) { snapper.SetMode(wanted); Plugin.Info($"map: circle mode {wanted}"); }
+            if (wanted == MapCursorSnapper.CursorMode.Centered) CircleToMiddle(map, snapper, false);
         }
         catch (Exception e) { Plugin.ErrorOnce("map circle mode", e); }
+    }
+
+    // First map after loading in (2026-11-08 test): the circle stayed off-centre although it was moved every frame
+    // ("was at" the same spot each frame = something puts it back, most likely an animation, which runs after
+    // Update). LateUpdate comes after the animations: move it there too, right before the game's circle code.
+    public static void BeforeSnapperLateUpdate(MapCursorSnapper __instance)
+    {
+        try
+        {
+            if (Now != Context.MapScreen || _mouseTookOver || __instance.mode != MapCursorSnapper.CursorMode.Centered) return;
+            var map = __instance.mapController ?? _mapCtl;
+            if (map != null) CircleToMiddle(map, __instance, true);
+        }
+        catch (Exception e) { Plugin.ErrorOnce("map circle (late)", e); }
+    }
+
+    // Centered mode leaves the circle where it was (see WatchMapPointer), so move it to the middle of the
+    // screen, with the game's own screen <-> canvas helpers (the ones its circle code uses).
+
+    static void CircleToMiddle(MapController map, MapCursorSnapper snapper, bool late)
+    {
+        var circle = snapper.cursorRect;
+        if (circle == null) return;
+        var canvas = map.canvas;
+        Camera cam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        var rect = snapper.GetScreenRect(circle, cam);
+        var middle = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+        if ((rect.center - middle).sqrMagnitude < 1f) return;
+        var from = MapCursorSnapper.ScreenToWorldOnCanvas(circle, rect.center, cam);
+        var to = MapCursorSnapper.ScreenToWorldOnCanvas(circle, middle, cam);
+        circle.position += to - from;
+        float t = Time.unscaledTime - _mapOpenedAt;
+        // Still being put back after half a second: log it a few times per opening (what moves it, and where).
+        if (t > 0.5f && _lateMovesLogged < 3)
+        {
+            _lateMovesLogged++;
+            Plugin.Info($"map: circle still being moved back ({_circleMoves + 1} moves, in {(late ? "LateUpdate" : "Update")}, was at {rect.center.x:0},{rect.center.y:0}, {t:0.00} s after opening)");
+        }
+        // Logged for every opening (a few times): if something keeps moving the circle back, it shows here.
+        if (_circleMoves++ < 4)
+            Plugin.Info($"map: circle moved to the middle (was at {rect.center.x:0},{rect.center.y:0}, screen {Screen.width}x{Screen.height}, " +
+                        $"{Time.unscaledTime - _mapOpenedAt:0.00} s after opening, map '{map.name}' {map.GetInstanceID()}, " +
+                        $"canvas {(canvas != null ? canvas.renderMode.ToString() : "none")}, pointer {(Cursor.visible ? "visible" : "hidden")} {Cursor.lockState})");
+    }
+    static int _circleMoves, _lateMovesLogged;
+
+    // Opened while driving: centre the map on the car, once, a moment after opening (after the game's own setup).
+    public static ConfigEntry<bool> MapOpensOnCar;
+    public static ConfigEntry<float> MapDpadSpeed;
+
+    // The first map after loading in still opened somewhere else (2026-11-07 retest): the game moves it itself
+    // after we centred it. So for the first 2 s after opening, as long as you haven't moved or zoomed it with the
+    // wheel, the map is put back on the car whenever it isn't where we left it.
+    static Vector2 _mapLeftAt;
+    static int _mapRecentres;
+
+    static void OpenOnCar(MapController map)
+    {
+        if (Now != Context.MapScreen || !_mapFromDriving || !MapOpensOnCar.Value) return;
+        float t = Time.unscaledTime - _mapOpenedAt;
+        if (t < 0.1f) return;
+        try
+        {
+            if (!map.gameObject.activeInHierarchy) return;
+            var rect = map.mapRect;
+            if (_mapCentredOnCar)
+            {
+                if (t > 2f || _mapTouched || (rect.anchoredPosition - _mapLeftAt).sqrMagnitude < 4f) return;
+                if (_mapRecentres++ >= 20) return;
+                if (_mapRecentres <= 3)
+                    Plugin.Info($"map: moved after we centred it ({_mapLeftAt} -> {rect.anchoredPosition}, {t:0.00} s after opening), back on the car");
+            }
+            var car = InputHooks.LocalVehicleInput;
+            if (car == null) { _mapCentredOnCar = true; return; }
+            var pos = car.transform.position;
+            map.CenterMapOnWorldPosition(pos);
+            map.ClampMapPosition();
+            _mapLeftAt = rect.anchoredPosition;
+            if (!_mapCentredOnCar)
+                Plugin.Info($"map: opened on the car ({pos.x:0}, {pos.z:0}), map '{map.name}' {map.GetInstanceID()}");
+            _mapCentredOnCar = true;
+        }
+        catch (Exception e) { Plugin.ErrorOnce("map: centre on the car", e); _mapCentredOnCar = true; }
+    }
+
+    // D-pad on the map: the game moves the map at full speed from the first moment (W/A/S/D), so the circle
+    // overshot small targets like a safe house. While the D-pad is held the game's pan speed is lowered:
+    // MapDpadSpeed of it at first, up to the full speed after 1.5 s held. The keyboard keeps the full speed.
+    static float _panSpeedOrig = -1f, _dpadHeldFor;
+    static MapController _panOf;
+
+    static void DpadPanSpeed(MapController map)
+    {
+        try
+        {
+            if (_panOf == null || _panOf.Pointer != map.Pointer) { _panOf = map; _panSpeedOrig = map.panSpeed; }
+            bool held = Now == Context.MapScreen && Buttons.HeldDpad != Vector2.zero;
+            _dpadHeldFor = held ? _dpadHeldFor + Time.unscaledDeltaTime : 0f;
+            float start = Mathf.Clamp(MapDpadSpeed.Value, 0.05f, 1f);
+            float want = held ? _panSpeedOrig * Mathf.Lerp(start, 1f, Mathf.Clamp01((_dpadHeldFor - 0.4f) / 1.1f)) : _panSpeedOrig;
+            if (!Mathf.Approximately(map.panSpeed, want)) map.panSpeed = want;
+        }
+        catch (Exception e) { Plugin.ErrorOnce("map D-pad speed", e); }
+    }
+
+    static void RestorePanSpeed()
+    {
+        try { if (_panOf != null && _panSpeedOrig > 0f) _panOf.panSpeed = _panSpeedOrig; }
+        catch { _panOf = null; }
+        _dpadHeldFor = 0f;
+    }
+
+    // --- car selection menu (the garage / merchant): tabs with the pedals ---------------------------
+    //
+    // The game switches its tabs there with Q / E (gamepad LB / RB). Throttle = next tab (E), brake = previous (Q),
+    // on each press. A pedal must be let go once after the menu opened, so a held brake doesn't switch at once.
+    public static ConfigEntry<bool> PedalsSwitchTabs;
+    const ushort VK_E = 0x45;
+    static bool _merchantOpen, _thrArmed, _brkArmed;
+    static float _merchantOpenedAt;
+
+    public static void AfterMerchantOpen() { _merchantOpen = true; _thrArmed = _brkArmed = false; _merchantOpenedAt = Time.unscaledTime; Plugin.Info("car menu: open (pedals switch tabs)"); }
+    public static void AfterMerchantClose() { _merchantOpen = false; }
+
+    public static bool InCarMenu => _merchantOpen && Now == Context.Menu;
+
+    static void UpdateMerchantTabs(float now)
+    {
+        if (!InCarMenu || !PedalsSwitchTabs.Value || !Win32.GameHasFocus() || Menu.IsOpen) { _thrArmed = _brkArmed = false; return; }
+        float thr = Wheel.Throttle, brk = Wheel.Brake;
+        if (thr < 0.2f) _thrArmed = true;
+        if (brk < 0.2f) _brkArmed = true;
+        if (now - _merchantOpenedAt < 0.3f) return;
+        if (_thrArmed && thr > 0.6f) { _thrArmed = false; Buttons.Tap(new[] { VK_E }, now); Plugin.Info("car menu: throttle -> next tab (E)"); }
+        if (_brkArmed && brk > 0.6f) { _brkArmed = false; Buttons.Tap(new[] { VK_Q }, now); Plugin.Info("car menu: brake -> previous tab (Q)"); }
     }
 
     // --- winch point picker -----------------------------------------------------------------------

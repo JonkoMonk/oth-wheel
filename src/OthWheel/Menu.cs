@@ -237,11 +237,18 @@ internal static class Menu
                 list.Add(Bool("Back to your side", SmartCamera.SideReturn, "After a mountainside moved it to the other side: back to your side once the ground is flat again for 6 s. Off = it stays where the slope put it."));
                 list.Add(Bool("Zoom in when blocked", SmartCamera.ZoomInWhenBlocked, "When trees, rocks or buildings come between the car and the camera, it zooms in until you see the car."));
                 list.Add(Bool("Reversing view", SmartCamera.Reverse, "Reversing: it rises a little so you see the ground behind the car (it never swings round)."));
+                list.Add(Bool("Reversing: keep your turn", SmartCamera.ReverseKeepsYourTurn, "Reversing: when you turn the camera yourself, it stays that way until you drive forward again."));
+                list.Add(Bool("Next reverse: last view", SmartCamera.ReverseRemembers, "On = the next reverse starts with the view you chose last time you reversed. Off = with the normal view."));
                 break;
 
             case Page.Buttons:
                 list.Add(Bool("Show button presses", Buttons.ShowButtonNumbers,
-                    $"Top-left: which wheel button you pressed and what it does (also {Buttons.DisplayToggleKey.Value} while driving). Needs On-screen messages on."));
+                    $"Top-left: which wheel button you pressed and what it does. Off by default: turn it on to check your buttons work (also {Buttons.DisplayToggleKey.Value} while driving). Needs On-screen messages on."));
+                list.Add(Bool("Pedals switch tabs", GameMenus.PedalsSwitchTabs, "In the car selection / customisation menu: throttle = next tab, brake = previous tab."));
+                list.Add(Bool("Map opens on the car", GameMenus.MapOpensOnCar, "Opening the map while driving: it opens centred on your car."));
+                list.Add(Num("Map D-pad speed", GameMenus.MapDpadSpeed, 0.1f, 1f, 0.05f, Pct, "How fast the D-pad moves the map at first (share of the game's speed); held longer it speeds up to full speed."));
+                list.Add(Num("Photo look speed", Buttons.PhotoLookSpeed, 0.5f, 5f, 0.25f, v => $"{v:0.00}x", "Photo mode: how fast the D-pad looks around at first; it speeds up while held."));
+                list.Add(Num("Photo zoom speed", Buttons.PhotoZoomSpeed, 0.25f, 4f, 0.25f, v => $"{v:0.00}x", "Photo mode: how fast the zoom buttons zoom; it speeds up while held."));
                 foreach (var (name, desc) in Buttons.ActionList)
                 {
                     string n = name;

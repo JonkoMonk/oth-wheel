@@ -7,6 +7,36 @@ Version numbers: MINOR (1.X) = new feature, PATCH (1.0.X) = fixes.
 - 1.1.0 (rest): "VR recenter" wheel-button action (for OTH VR)
 - 1.2.0: clutch required (optional: shifting without the clutch grinds)
 
+## 1.1.2 (2026-11-08)
+
+- B goes back out of the winch and the inventory when you opened them from the quick action wheel (it pressed
+  the winch-release key there instead of Escape). On the winch point picker the D-pad steps through the points
+  again.
+- Map:
+  - The selection circle is in the middle as soon as the map opens (the game's "centred" circle mode leaves the
+    circle wherever the mouse put it, so the mod now puts it in the middle). A clicks where the circle is.
+  - Opening the map while driving or from a menu (also the first map after loading in): it opens centred on
+    your car (F3 > Buttons > "Map opens on the car").
+  - The D-pad moves the map slowly at first, so you can put the circle on a safe house without overshooting;
+    held longer it speeds up (F3 > Buttons > "Map D-pad speed").
+  - Only a real mouse move hands the circle to the mouse; a pointer that jumps by itself is put back. After
+    the mouse took over, the D-pad brings the circle back to the middle.
+- Photo mode: the D-pad looks around faster, and the zoom buttons zoom much faster (speeding up while held).
+  Both can be set in F3 > Buttons.
+- Smart camera, reversing: when you turn the camera yourself while reversing, it stays that way until you drive
+  forward again (also a turn made with reverse gear in before the car moves). The next reverse starts with
+  the view you chose last time (F3 > Camera > "Next reverse: last view"; turn it off to start every reverse
+  with the normal view).
+- Car selection / customisation menu: the pedals switch tabs (throttle = next, brake = previous; F3 > Buttons >
+  "Pedals switch tabs"). New wheel-button actions "Menus: previous tab" / "Menus: next tab" (the game's Q / E), in
+  the setup wizard and F3 > Buttons, for wheels that want them on buttons.
+- New wheel-button action "Wheel mod menu (F3) open / close", so the settings menu works without a keyboard
+  (D-pad chooses, B = back). In the setup wizard and F3 > Buttons like every other action.
+- The top-left text when you press a wheel button is off by default now (also switched off once for existing
+  installs). To check your buttons work, turn it on with F8 or F3 > Buttons > "Show button presses". It
+  shows only the devices in your wheel setup now (an Xbox pad next to the wheel showed its buttons there too;
+  they never did anything). The cockpit-view, tab and menu-close buttons no longer show a confirmation text either.
+
 ## 1.1.1 (2026-11-07)
 
 - Known: on the map the selection circle still only stays in the middle after you press A once (the mod

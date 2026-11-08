@@ -36,6 +36,7 @@ public static class CockpitLink
     internal static string RequestToggle()
     {
         CockpitToggles++;
-        return CockpitInstalled ? "Cockpit view on / off" : "Cockpit view: the OTH Cockpit mod isn't installed";
+        // No "on / off" text: you see the view change (top-left texts only when they tell you something).
+        return CockpitInstalled ? null : "Cockpit view: the OTH Cockpit mod isn't installed";
     }
 }

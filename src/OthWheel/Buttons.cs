@@ -42,9 +42,10 @@ internal static class Buttons
     static Action _ok, _back, _map;
     public static ConfigEntry<bool> Enabled, ShowButtonNumbers, ReplaceGameWheelButtons, CameraInvertX, CameraInvertY, QuickMenuOnMapHold;
     // Keys for the OK / back buttons (A / B by default) outside driving, per screen ([MenuKeys]).
-    static ConfigEntry<string> _menuOkKeys, _menuBackKeys, _photoOkKeys, _mapOkKeys, _musicOkKeys;
+    static ConfigEntry<string> _menuOkKeys, _menuBackKeys, _photoOkKeys, _mapOkKeys, _musicOkKeys, _prevTabKeys, _nextTabKeys;
     static ushort[] _menuOk = Array.Empty<ushort>(), _menuBack = Array.Empty<ushort>(), _photoOk = Array.Empty<ushort>(),
-                    _mapOk = Array.Empty<ushort>(), _musicOk = Array.Empty<ushort>();
+                    _mapOk = Array.Empty<ushort>(), _musicOk = Array.Empty<ushort>(), _prevTab = Array.Empty<ushort>(), _nextTab = Array.Empty<ushort>();
+    public static ConfigEntry<float> PhotoLookSpeed, PhotoZoomSpeed;
     // The map screen moves with W/A/S/D (the game binds no arrow keys there).
     static readonly ushort[] MapUp = { 0x57 }, MapDown = { 0x53 }, MapLeft = { 0x41 }, MapRight = { 0x44 };
     static readonly ushort[] VkBackspace = { 0x08 };
@@ -71,8 +72,8 @@ internal static class Buttons
     public static void Bind(ConfigFile cfg)
     {
         Enabled = cfg.Bind("Buttons", "Enabled", true, "Wheel buttons press game keys (which button does what is part of the wheel setup, made in the setup wizard).");
-        ShowButtonNumbers = cfg.Bind("Buttons", "ShowButtonNumbers", true,
-            "Show the pressed wheel button and its action in the top-left corner for 3 seconds. F8 in game switches it (see ShowButtonNumbersKey).");
+        ShowButtonNumbers = cfg.Bind("Buttons", "ShowButtonNumbers", false,
+            "Show the pressed wheel button and its action in the top-left corner for 3 seconds (handy to check your buttons work). F8 in game switches it (see ShowButtonNumbersKey).");
         DisplayToggleKey = cfg.Bind("Buttons", "ShowButtonNumbersKey", "F8",
             "Keyboard key that switches the on-screen button display (ShowButtonNumbers) on and off. Empty = no key.");
         ReplaceGameWheelButtons = cfg.Bind("Buttons", "ReplaceGameWheelButtons", true,
@@ -107,6 +108,9 @@ internal static class Buttons
         _actions.Add(new Action { Name = "CockpitView", Description = "Cockpit (first person) view on / off (OTH Cockpit mod)", OnPress = CockpitLink.RequestToggle });
         _actions.Add(new Action { Name = "CameraSide", Description = "Smart camera: left / right side of the car", OnPress = SmartCamera.ToggleSide });
         _actions.Add(new Action { Name = "QuickMenu", Description = "Quick action wheel (game key Q): D-pad chooses, A = OK, B = close", OnPress = GameMenus.ToggleQuickMenu });
+        _actions.Add(new Action { Name = "WheelMenu", Description = "Wheel mod menu (F3) open / close: D-pad chooses, B = back", OnPress = ToggleWheelMenu });
+        _actions.Add(new Action { Name = "PreviousTab", Description = "Menus: previous tab (game key Q, e.g. in the car menu)", OnPress = () => SwitchTab(false) });
+        _actions.Add(new Action { Name = "NextTab", Description = "Menus: next tab (game key E, e.g. in the car menu)", OnPress = () => SwitchTab(true) });
         _ok = _actions.First(a => a.Name == "WinchExtendAndInteract");
         _back = _actions.First(a => a.Name == "WinchRelease");
         _map = _actions.First(a => a.Name == "Map");
@@ -119,6 +123,12 @@ internal static class Buttons
         _photoOkKeys = cfg.Bind("MenuKeys", "PhotoModeOK", "LeftMouse", "Key(s) the OK button presses in photo mode (take the photo).");
         _mapOkKeys = cfg.Bind("MenuKeys", "MapOK", "LeftMouse", "Key(s) the OK button presses on the map screen.");
         _musicOkKeys = cfg.Bind("MenuKeys", "MusicOK", "E", "Key(s) the OK button presses in the music player (play / pause).");
+        _prevTabKeys = cfg.Bind("MenuKeys", "PreviousTab", "Q", "Key(s) the 'previous tab' button presses in menus.");
+        _nextTabKeys = cfg.Bind("MenuKeys", "NextTab", "E", "Key(s) the 'next tab' button presses in menus.");
+        PhotoLookSpeed = cfg.Bind("Buttons", "PhotoLookSpeed", 2.0f,
+            "Photo mode: how fast the D-pad looks around at first (x CameraSpeed); held for a second it gets 3.5x faster.");
+        PhotoZoomSpeed = cfg.Bind("Buttons", "PhotoZoomSpeed", 1.0f,
+            "Photo mode: how fast the zoom buttons zoom (1 = 10 steps a second at first, speeding up to 50 while held; 2 = twice that).");
 
         Reparse();
     }
@@ -143,6 +153,8 @@ internal static class Buttons
         _photoOk = Win32.ParseKeys(_photoOkKeys.Value, "MenuKeys.PhotoModeOK");
         _mapOk = Win32.ParseKeys(_mapOkKeys.Value, "MenuKeys.MapOK");
         _musicOk = Win32.ParseKeys(_musicOkKeys.Value, "MenuKeys.MusicOK");
+        _prevTab = Win32.ParseKeys(_prevTabKeys.Value, "MenuKeys.PreviousTab");
+        _nextTab = Win32.ParseKeys(_nextTabKeys.Value, "MenuKeys.NextTab");
         _displayToggleVk = Win32.ParseKeys(DisplayToggleKey.Value, DisplayToggleKey.Definition.Key);
     }
 
@@ -202,11 +214,12 @@ internal static class Buttons
             ReleaseAll();
             _prevHeld.Clear();
             _zoomDir = 0;
+            HeldDpad = Vector2.zero; HeldZoom = 0;
             return;
         }
 
         ShowPresses(profile, now);
-        if (profile == null) { ReleaseAll(); _zoomDir = 0; return; }
+        if (profile == null) { ReleaseAll(); _zoomDir = 0; HeldDpad = Vector2.zero; HeldZoom = 0; return; }
 
         var camera = Vector2.zero;
         int zoom = 0;
@@ -251,6 +264,7 @@ internal static class Buttons
             if (held)
             {
                 act.PressedVk = KeysNow(act);
+                if (act == _ok) GameMenus.PointerToMapCentre();   // A clicks on the map: where the circle is
                 foreach (var vk in act.PressedVk) Win32.Key(vk, true);
             }
             else
@@ -263,6 +277,7 @@ internal static class Buttons
         // The cockpit mod looks around with these directly (camera actions: x right, y down).
         // Not while the settings menu is open: the D-pad steers the menu then.
         if (Menu.IsOpen) camera = Vector2.zero;
+        HeldDpad = camera;
         HeldZoom = Math.Sign(zoom);
         ScrollInMenus(HeldZoom, now);
         var look = CarCamera ? camera : Vector2.zero;
@@ -335,17 +350,27 @@ internal static class Buttons
 
     // Zoom buttons held this frame (+1 in, -1 out); the map zooms with it smoothly (GameMenus.AfterMapUpdate).
     public static int HeldZoom;
+    // Camera buttons (D-pad) held this frame (x right, y down, not inverted); the map slows its pan with it.
+    public static Vector2 HeldDpad;
 
     // Zoom buttons in photo mode (and on the map if its smooth zoom isn't available): mouse wheel notches
     // while held (those screens zoom with the wheel).
     static float _nextNotch;
 
+    // Photo mode zoom was really slow (one notch every 0.1 s): it now speeds up while held, from 10 notches a second
+    // to 50 after a second (x PhotoZoomSpeed); the first 0.3 s stay slow for small steps.
+    static float _zoomHeldFor;
+
     static void ScrollInMenus(int dir, float now)
     {
-        if (dir == 0 || GameMenus.Now is not (GameMenus.Context.MapScreen or GameMenus.Context.PhotoCamera)) return;
+        if (dir == 0 || GameMenus.Now is not (GameMenus.Context.MapScreen or GameMenus.Context.PhotoCamera)) { _zoomHeldFor = 0f; return; }
         if (GameMenus.MapZoomReady) return;
+        _zoomHeldFor += Mathf.Clamp(Time.unscaledDeltaTime, 0f, 0.1f);
         if (now < _nextNotch) return;
-        _nextNotch = now + 0.1f;
+        float perSecond = 10f;
+        if (GameMenus.Now == GameMenus.Context.PhotoCamera)
+            perSecond = Mathf.Lerp(10f, 50f, Mathf.Clamp01((_zoomHeldFor - 0.3f) / 0.7f)) * Mathf.Clamp(PhotoZoomSpeed.Value, 0.25f, 4f);
+        _nextNotch = now + 1f / perSecond;
         Win32.MouseWheel(dir);
     }
 
@@ -361,6 +386,9 @@ internal static class Buttons
                 continue;
             }
             int pi = ProfileIndex(profile, d);
+            // With a setup active, only its own devices: a gamepad (e.g. Xbox pad next to a G920) isn't part of
+            // the wheel setup, its buttons never fire wheel actions, so don't show them as wheel buttons either.
+            if (profile != null && pi < 0) { for (int b = 0; b < VirtualButtons; b++) prev[b] = HeldFor(d, b, now, ReleaseDelay); continue; }
             for (int b = 0; b < VirtualButtons; b++)
             {
                 bool held = HeldFor(d, b, now, ReleaseDelay);
@@ -484,8 +512,9 @@ internal static class Buttons
         catch (Exception e) { Plugin.ErrorOnce("zoom hook", e); }
     }
 
-    // Photo mode look: starts at 1.2 x CameraSpeed, 4x that after 1.5 s held (0.5 x felt way too slow).
-    const float PhotoLookSpeed = 1.2f, PhotoLookMaxFactor = 4f, PhotoLookRampTime = 1.5f;
+    // Photo mode look: starts at PhotoLookSpeed x CameraSpeed, 3.5x that after 1 s held (1.2x ramping to 4x over
+    // 1.5 s was still "a bit too slow", 2026-11-07).
+    const float PhotoLookMaxFactor = 3.5f, PhotoLookRampTime = 1.0f;
     static float _photoLookFor;
 
     // Only while driving with the mouse cursor hidden; in menus the camera buttons just send their arrow keys.
@@ -500,7 +529,7 @@ internal static class Buttons
             if (_rightMouseDown) { Win32.MouseRight(false); _rightMouseDown = false; }
             SmartCamera.Dpad = Vector2.zero;
             _photoLookFor += dt;
-            float speed = PhotoLookSpeed * CameraSpeed.Value * Mathf.Lerp(1f, PhotoLookMaxFactor, Mathf.Clamp01(_photoLookFor / PhotoLookRampTime));
+            float speed = Mathf.Clamp(PhotoLookSpeed.Value, 0.2f, 10f) * CameraSpeed.Value * Mathf.Lerp(1f, PhotoLookMaxFactor, Mathf.Clamp01(_photoLookFor / PhotoLookRampTime));
             _mouseX += dir.x * speed * dt;
             _mouseY += dir.y * speed * dt;
             int px = (int)_mouseX, py = (int)_mouseY;
@@ -546,12 +575,37 @@ internal static class Buttons
     public static bool TapAction(string name, float now)
     {
         var a = _actions.FirstOrDefault(x => x.Name == name);
-        if (a == null || a.Vk.Length == 0 || !Win32.GameHasFocus()) return false;
+        return a != null && Tap(a.Vk, now);
+    }
+
+    public static bool Tap(ushort[] keys, float now)
+    {
+        if (keys == null || keys.Length == 0 || !Win32.GameHasFocus()) return false;
         TapRelease(float.MaxValue);
-        _tapVk = a.Vk;
+        _tapVk = keys;
         _tapUntil = now + 0.1f;
         foreach (var vk in _tapVk) Win32.Key(vk, true);
         return true;
+    }
+
+    // "WheelMenu" button: the F3 settings menu, for wheels without a keyboard in reach (it needs a wheel setup).
+    static string ToggleWheelMenu()
+    {
+        if (Menu.IsOpen) { Menu.Close(); return null; }
+        if (Devices.Active == null) return "Wheel menu: set up the wheel first (F3)";
+        Menu.Open();
+        return "Wheel menu: D-pad chooses, B = back";
+    }
+
+    // "Previous tab" / "Next tab" buttons: the game's tab keys (Q / E), only in menus (while driving Q is the
+    // quick action wheel).
+    static string SwitchTab(bool next)
+    {
+        var c = GameMenus.Now;
+        bool menu = c == GameMenus.Context.Menu || (c == GameMenus.Context.Unknown && Cursor.visible);
+        if (!menu || Menu.IsOpen) return "Tabs: only in menus";
+        Tap(next ? _nextTab : _prevTab, Time.unscaledTime);
+        return null;
     }
 
     static void TapRelease(float now)

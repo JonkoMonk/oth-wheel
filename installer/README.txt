@@ -245,15 +245,17 @@ id and your axis/button choices. Nothing is ever sent automatically.
   BOX ................ reset car
   WIP ................ push car
   FL ................. horn
-  S1 ................. map (short press); hold for half a second =
-                       quick action wheel (the game's Q): D-pad
-                       left/right steps round it, up/down = top /
-                       bottom item, A = OK, B = close
+  S1 ................. map (short press): opens on your car, with the
+                       selection circle in the middle. Hold for half
+                       a second = quick action wheel (the game's Q):
+                       D-pad left/right steps round it, up/down =
+                       top / bottom item, A = OK, B = close
   MENU ............... pause menu / back
   RADIO .............. force feedback profile: Soft / Normal / Realistic / Heavy
   D-pad .............. turn the camera; arrows in menus; moves the
-                       map; looks around in photo mode; steps
-                       through the winch points
+                       map (slowly at first, faster when held);
+                       looks around in photo mode; steps through
+                       the winch points
   S2 / HOME .......... camera zoom in / out (hold); also on the map
                        and in photo mode
   CAM ................ cockpit (first person) view on / off
@@ -263,9 +265,18 @@ id and your axis/button choices. Nothing is ever sent automatically.
 Other wheels: you choose in the wizard. Keyboard and gamepad keep
 working as normal.
 
-When you press a wheel button, its name and action show briefly in
-the top-left corner. Press F8 to turn that display off (and F8 again
-to turn it back on). The choice is remembered. To turn off ALL the
+More actions you can put on a spare button (F3 > 1):
+  - Wheel mod menu (F3) open / close: the settings menu without a
+    keyboard (D-pad chooses, B = back)
+  - Menus: previous tab / next tab (the game's Q / E)
+In the car selection / customisation menu the pedals switch tabs:
+throttle = next tab, brake = previous tab.
+
+To check that your wheel buttons work, press F8 while driving (or
+F3 > Buttons > Show button presses): each button you press then
+shows its name and action briefly in the top-left corner. F8 again
+turns it off. It is off by default and the choice is remembered.
+To turn off ALL the
 yellow messages (start message, gears, camera side, ...): F3 >
 On-screen messages.
 
@@ -284,7 +295,10 @@ mod picks a good view by itself, made for driving off-road:
   - along the side of a mountain: round to the downhill side, looking
     back up at the car (setting SideSlope)
   - reversing: it doesn't swing round; it rises a little so you see
-    the ground behind the car
+    the ground behind the car. Turn it yourself while reversing (e.g.
+    to look forward) and it stays that way until you drive forward
+    again; the next reverse starts from your last reversing view
+    (F3 > Camera > "Next reverse: last view")
   - trees or rocks between you and the car: it zooms in until you can
     see the car again (setting ZoomInWhenBlocked)
   - distance: a little closer when crawling or among trees, further
@@ -330,6 +344,9 @@ Mirrors: the rear-view mirror and the side mirrors show what's behind
 you. They cost some frame rate; pick what suits your PC with
 [Mirrors] Quality in the settings file: Low (only the rear-view
 mirror), Medium (default), High or Ultra. Enabled = false turns them off.
+They show a wide view, like a convex mirror (WideAngle; 1 = a real
+flat mirror), and the rear-view mirror is half as big again
+(RearViewSize; 1 = the model's size).
 
 Settings (seat, field of view, look speed, leaning into corners, mirrors):
   MelonLoader:  <game folder>\UserData\OthCockpit\jonkomonk.oth.cockpit.cfg
@@ -376,7 +393,13 @@ Every setting has a short explanation above it. Examples:
                         MaxHeight, SideAngle, SideSlope (Downhill /
                         Uphill / Off), Strength, Speed, ReturnAfter,
                         Reverse, ZoomInWhenBlocked, SideReturn,
-                        Distance, DpadSpeed / DpadMaxSpeed
+                        Distance, DpadSpeed / DpadMaxSpeed,
+                        ReverseKeepsYourTurn, ReverseRemembers
+  [Map] ............... OpenOnCar (the map opens on your car),
+                        DpadSpeed (how slowly the D-pad starts)
+  PhotoLookSpeed ...... photo mode: D-pad look speed
+  PhotoZoomSpeed ...... photo mode: zoom button speed
+  PedalsSwitchTabs .... pedals switch tabs in the car menu
   Profile / StrengthTrim  force feedback profile and overall strength
   [ButtonKeys] ........ which game key each action presses (only if
                         you changed the game's keyboard controls)
@@ -474,6 +497,14 @@ Something else
   - Send the mod's author a short description, and the file
     MelonLoader\Latest.log (BepInEx: BepInEx\LogOutput.log) from the
     game folder.
+@end
+
+Still stuck?
+@wheel
+  - Ask in the JonkoMonk Discord: https://discord.gg/h2hXcYgkpE (#wheel-help).
+@end
+@cockpitonly
+  - Ask in the JonkoMonk Discord: https://discord.gg/h2hXcYgkpE (#cockpit-help).
 @end
 
 

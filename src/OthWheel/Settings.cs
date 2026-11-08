@@ -75,6 +75,17 @@ internal static class Settings
         CarPhysics.Bind(cfg);
         GearProbe.Bind(cfg);
         SmartCamera.Bind(cfg);
+        GameMenus.Bind(cfg);
+
+        // 1.1.2: the button-press display is off by default now (a player asked). Older cfgs saved the old
+        // default (true) and a deliberate "on" can't be told apart from it, so switch it off once for everyone;
+        // F8 / F3 > Buttons turns it back on and that choice stays.
+        if (keyDefaults.Value < 2)
+        {
+            Buttons.ShowButtonNumbers.Value = false;
+            keyDefaults.Value = 2;
+            cfg.Save();
+        }
 
         _lastWrite = File.Exists(cfg.ConfigFilePath) ? File.GetLastWriteTimeUtc(cfg.ConfigFilePath) : DateTime.MinValue;
     }
