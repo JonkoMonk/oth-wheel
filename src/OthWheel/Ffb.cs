@@ -48,7 +48,7 @@ internal static class Ffb
     static ConfigEntry<string> Layout;
 
     // Diagnostics for the status log.
-    public static float Aligning, BumpForce, LockForce, Centering, ImpactForce, Total, GamePulse;
+    public static float Aligning, BumpForce, LockForce, Centering, ImpactForce, GrindForce, Total, GamePulse;
     public static int Output, DamperOut, SatSignVotes, BadValues;
     public static string State = "idle";
 
@@ -268,7 +268,10 @@ internal static class Ffb
         // Our own crash jolt from sudden deceleration, used when the game sends none.
         ImpactForce = GamePulse != 0f ? 0f : ImpactJolt(vehicle, rb, now, dt, tune.Impacts);
 
-        Total = Mathf.Clamp(Finite(Aligning + BumpForce + Centering + LockForce + ImpactForce), -1f, 1f);
+        // Clutch-required shifting: a gear that grinds rattles the wheel.
+        GrindForce = Shifter.GrindForce(now);
+
+        Total = Mathf.Clamp(Finite(Aligning + BumpForce + Centering + LockForce + ImpactForce + GrindForce), -1f, 1f);
         // Direction measured for this wheel (R3: Direction = -1).
         float sign = setup.Ffb.Direction * (Invert.Value ? -1f : 1f);
         Output = Mathf.Clamp(Mathf.RoundToInt(Finite(Total * strength * 10000f * sign + GamePulse)), -10000, 10000);

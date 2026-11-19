@@ -5,7 +5,63 @@ Version numbers: MINOR (1.X) = new feature, PATCH (1.0.X) = fixes.
 ## Planned
 
 - 1.1.0 (rest): "VR recenter" wheel-button action (for OTH VR)
-- 1.2.0: clutch required (optional: shifting without the clutch grinds)
+
+## 1.2.0 (2026-11-19)
+
+- Update notice: when a newer version is out, a message in the game's menu (main menu or pause menu) says so once,
+  with a button that opens its Nexus page and a "Don't show this again" box (ticked = not again for that version; a
+  newer one is shown once more). With OTH Cockpit 0.4.4 or newer installed too, one message covers both mods. After
+  that, F3 shows a line about it until you update. Nothing is downloaded by itself. The mod asks GitHub once per game
+  start and sends nothing about you; switch it off with `[Updates] Check = false` in the settings file.
+- Installer: running Install.bat over an older version says what it updates ("Updating: wheel 1.1.3 -> 1.2.0,
+  cockpit 0.4.3 -> 0.4.4. Your settings and wheel setups are kept") and no longer asks again whether you want the
+  parts you already have; it only asks about a part from the zip that isn't installed yet.
+
+- Stutter fix: the game no longer hitches every few seconds when no wheel is set up yet (no wheel plugged in, only a
+  pad or another controller, or the setup wizard never run). The mod looked for new controllers every 3 seconds, and
+  on some PCs that look takes long enough to drop frames (about 0.17 s on the author's PC). Now it only looks when
+  Windows says something was plugged in or out, and a controller it can't open is no longer tried again on every
+  look. Plugging in a wheel while the game runs still works. Reported by two players.
+
+- Setup wizard on first start: the yellow start message no longer says "this wheel isn't set up yet. Press F3 for
+  the setup wizard" while the wizard is already open. Pressing F3 as told closed the wizard that had just opened by
+  itself, and it didn't come back that session (reported by a player with a Moza R21). The message now waits until
+  the wizard is closed.
+
+- Clutch needed to shift (H-shifter, optional, off by default): a gear only goes in with the clutch pedal pressed
+  (50% by default). Without it the gear grinds, with a short buzz in the wheel, and doesn't go in: the car stays
+  in neutral until you press the clutch with the lever still in the gear, or move the lever. Taking a gear out never
+  needs the clutch, and with the engine off gears go in freely. Works with the real clutch and stalling. F3 >
+  Clutch & shifter > "Clutch to shift", "Clutch needed", "Grind buzz"; Setup tools > 0 (also offered right after
+  the shifter setup); settings file `[Shifter] ClutchRequired`, `ClutchToShift`, `GrindBuzz`. Needs a clutch pedal
+  (starts once the clutch has been pressed).
+- Clutch to shift, two more settings (F3 > Clutch & shifter): "After a grind" = Neutral (default) or Stay in old
+  gear (the gear you came from stays in, as if the shift was refused; it doesn't drop to neutral while the lever
+  crosses neutral, and moving the lever back to that gear just keeps it), and "Grind buzz length" (0.3 s by default,
+  0.1-1 s, or "While in gear" = as long as the lever sits in the gear without the clutch). Settings file
+  `[Shifter] AfterGrind`, `GrindBuzzLength`.
+- Smart camera: on slopes and mountainsides it now keeps the same "Side angle" as on the flat; before, they swung
+  it up to 55 degrees further round. The old swing is still there as an option: F3 > Camera > "Slope side swing"
+  (Off by default; settings file `[SmartCamera] SlopeSwing`).
+- Smart camera: turning the camera with the D-pad past trees or rocks no longer zooms it in and out quickly (the
+  "zoom in when blocked" now waits while you turn it, a block must last a quarter second, and it stays in until
+  the view has been clear for 2 s, so rocks no longer pump it in and out).
+- F3 number settings are written to the log when you change them (helps reading test logs).
+- F3 > Camera: "Cockpit: look into turns" (Off / 10-60 degrees), shown with OTH Cockpit 0.4.4 or newer.
+- Quick action wheel: no more yellow "Quick menu: D-pad = choose ..." line top left (only with "Show button
+  presses" on).
+- Range as gears (2-gear cars, H-shifter): when the game window wasn't in front, the high/low switch gave up with
+  "no key for HiLo"; it now waits and switches once the game is in front again. A really missing key says so.
+- Quick action wheel, D-pad: the first press jumps to that side's item (left = leftmost, right = rightmost, up = top,
+  down = bottom). After that each press steps one item round the ring the way the arrow points from where you are
+  (at the top or bottom, left/right step left/right; on the left or right item, up/down step up/down).
+- On the first drive after installing, the start message also says "Press F3 for the settings menu" (once).
+- Smart camera, uphill: it now goes lower on a climb (the opposite of downhill), so you see the climb ahead
+  instead of the car roof and the sky, even below the lowest "Height". A crest ahead hardly raises it while the
+  climb is still steep; at the top it rises as before. It still stays above the ground ("Stay above the ground").
+  It only goes as low as the ground allows: it stops lowering, and backs off at once, when the camera or the
+  line to the car comes within "Stay above the ground" (at least 1 m). F3 > Camera > "Uphill lower" (1.5 m;
+  0 = off; settings file `[SmartCamera] UphillDrop`). Downhill is unchanged.
 
 ## 1.1.3 (2026-11-08)
 

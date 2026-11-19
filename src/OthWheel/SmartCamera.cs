@@ -19,7 +19,8 @@ namespace OthWheel;
 //  - steep slopes: further round to the side; downhill also higher and a little further back;
 //  - on the side of a mountain: round to the downhill side looking back up at the car (or the uphill side,
 //    [SmartCamera] SideSlope), and higher;
-//  - downhill / a crest ahead: higher, so you look over the car at the ground ahead (uphill it stays low);
+//  - downhill / a crest ahead: higher, so you look over the car at the ground ahead;
+//  - uphill: lower (even below the game's lowest), so you see the climb, not the car roof and the sky;
 //  - reversing: it does NOT swing round; it rises a little so you see the ground behind the car;
 //  - something between the car and the camera (trees, rocks): it zooms in until the view is clear.
 // Your own camera moves (mouse, right stick, camera buttons) always win; it eases back after ReturnAfter s.
@@ -34,7 +35,7 @@ internal static class SmartCamera
     public static ConfigEntry<float> Strength, Speed, ReturnAfter, DpadSpeed, DpadMaxSpeed, SideAngle, Height, MaxHeight;
     public static ConfigEntry<Side> SideSlope;
     public static ConfigEntry<bool> Reverse, ZoomInWhenBlocked, SideReturn, ReverseKeepsYourTurn, ReverseRemembers;
-    public static ConfigEntry<float> Distance, GroundClearance, DownhillExtra;
+    public static ConfigEntry<float> Distance, GroundClearance, DownhillExtra, UphillDrop, SlopeSwing;
 
     public static void Bind(ConfigFile cfg)
     {
@@ -47,7 +48,7 @@ internal static class SmartCamera
         ReturnAfter = cfg.Bind(s, "ReturnAfter", 2.5f, "Seconds after you last moved the camera yourself before it takes over again.");
         SideAngle = cfg.Bind(s, "SideAngle", 25f,
             "Off-road view: how far round to the side of the car the camera sits at crawling speed, degrees (0 = straight behind). " +
-            "Slopes add to it; at higher speed it moves closer to behind.");
+            "The same on slopes unless SlopeSwing is on; at higher speed it moves closer to behind.");
         Height = cfg.Bind(s, "Height", 0.15f,
             "Camera height on the flat: 0 = the lowest the game allows, 1 = the highest (straight down from above). Slopes add to it. " +
             "Raising or lowering the camera with the camera buttons changes it until the game restarts.");
@@ -75,6 +76,16 @@ internal static class SmartCamera
         DownhillExtra = cfg.Bind(s, "DownhillExtra", 0.3f,
             "Going downhill the camera may rise this much above MaxHeight, to look over the car down the slope " +
             "(0 = MaxHeight is the limit everywhere).");
+        // Metres, a new key: 1.1.4 build 1 had UphillLower 0.3 in height-axis units = up to 3.7 m with this game's orbits,
+        // into the ground on steep climbs (JonkoMonk, 2026-11-09). A new name so the old value in his cfg doesn't stick.
+        UphillDrop = cfg.Bind(s, "UphillDrop", 1.5f,
+            "Going uphill the camera goes this many metres lower (full at a 30% climb), also below the lowest Height, so you see " +
+            "the climb ahead instead of the car roof and the sky. The ground always wins: it only lowers while the camera and the " +
+            "line to the car stay GroundClearance (at least 1 m) above the ground. 0 = off.");
+        // JonkoMonk 2026-11-13: "it should be the same side angle as flat", so off by default.
+        SlopeSwing = cfg.Bind(s, "SlopeSwing", 0f,
+            "Steep slopes and mountainsides swing the camera further round to the side, on top of SideAngle " +
+            "(0 = off: the same side angle as on the flat; 1 = the old amount, up to 25 deg for a climb + 30 deg for a mountainside).");
         DpadSpeed = cfg.Bind(s, "DpadSpeed", 60f, "Camera buttons: turning speed when you start holding one, degrees per second.");
         DpadMaxSpeed = cfg.Bind(s, "DpadMaxSpeed", 240f, "Camera buttons: top turning speed after holding for a second.");
         Log = cfg.Bind(s, "Log", true, "Write what the smart camera sees and does to the log once a second (for tuning).");
@@ -110,7 +121,7 @@ internal static class SmartCamera
 
     public static void BeforeCameraUpdate(CinemachineFreeLook __instance, float deltaTime)
     {
-        if (!Enabled.Value) { ResetState(); return; }
+        if (!Enabled.Value) { ResetState(); RestoreOrbit(__instance); return; }
         try
         {
             if (_controls == null || __instance.Pointer != _controls.freeLookCamera?.Pointer) return;
@@ -189,8 +200,11 @@ internal static class SmartCamera
             if (SideReturn.Value && _flatFor > 6f && _sinceSwap > 10f && _sideSign != _mySide) { _sideSign = _mySide; _sinceSwap = 0f; }
             // Off-road three-quarter view at crawling speed, closer to straight behind when going fast.
             float slowness = 1f - Mathf.Clamp01((kmh - 15f) / 35f);
-            float angle = SideAngle.Value * (0.35f + 0.65f * slowness) + 25f * steep
-                        + (SideSlope.Value != Side.Off ? 30f * sideSteep : 0f);
+            // The slope swings scale with SideAngle below the default 25 deg, so 0 = straight behind everywhere
+            // (JonkoMonk 2026-11-13: Side angle 0, still x 40-48 on 35-47% slopes: "doesn't match the setting").
+            float swing = Mathf.Clamp01(SideAngle.Value / 25f) * Mathf.Clamp(SlopeSwing.Value, 0f, 1.5f);
+            float angle = SideAngle.Value * (0.35f + 0.65f * slowness) + swing * (25f * steep
+                        + (SideSlope.Value != Side.Off ? 30f * sideSteep : 0f));
             float wantX = reversing ? 0.5f * _sideSign * angle : _sideSign * Mathf.Clamp(angle * str, 0f, 60f);
             // Reversing: a turn of your own is kept until you drive forward again (stopping in between keeps it).
             if (fwdSpeed > 0.8f && _revHold && !ReverseGear(car))
@@ -205,12 +219,16 @@ internal static class SmartCamera
             if (inReverse && own && ReverseKeepsYourTurn.Value && !_revHold) { _revHold = true; Plugin.Info("smart cam: reversing, keeping your camera turn"); }
             if (!ReverseKeepsYourTurn.Value) _revHold = false;
             if (inReverse && !_revHold && ReverseKeepsYourTurn.Value && ReverseRemembers.Value && !float.IsNaN(_revLastX)) wantX = _revLastX;
-            // Downhill: higher, to look over the car at the ground ahead. Uphill: hardly higher (from above you
-            // only saw the car roof, a top-down view); you look up the hill at the crest instead, which raises it.
+            // Downhill: higher, to look over the car at the ground ahead. Uphill: LOWER (UphillDrop), the opposite:
+            // from above you only saw the car roof and the sky (JonkoMonk, 2026-11-09: "it should go lower, opposite
+            // of when going downhill"). A crest ahead raises it, but hardly while the climb is still steep (on a
+            // climb that eases off the crest measure saw a crest all the way up and lifted it: 1.1.3 logs, lift 0.3
+            // at slope 64% crest 44%); at the top the slope drops and the crest counts fully again.
             // Downhill counts from 3% and is full at 25% (it used to be 5% / 30%: 1.1.2 hardly rose on a -9% road).
             float down = slope < 0f ? Mathf.Clamp01((-slope - 0.03f) / 0.22f) : 0f, up = slope > 0f ? steep : 0f;
-            float wantLift = str * (0.35f * down + 0.05f * up + 0.25f * Mathf.Clamp01(crest / 0.2f) + 0.10f * sideSteep);
+            float wantLift = str * (0.35f * down + 0.25f * (1f - 0.7f * up) * Mathf.Clamp01(crest / 0.2f) + 0.10f * sideSteep);
             float wantZoom = str * (0.15f * down + 0.08f * up);
+            float wantLower = reversing ? 0f : str * Mathf.Clamp(UphillDrop.Value, 0f, 5f) * up;   // metres
             // Reversing: only a little higher and further back (the slope/crest terms look ahead of the car's
             // nose, the wrong way). Lift 0.30 + zoom 0.35 ended up nearly top-down and too far to see where you
             // were going (JonkoMonk, 2026-10-25).
@@ -237,6 +255,7 @@ internal static class SmartCamera
                 float kDown = 1f - Mathf.Exp(-dt * Mathf.Max(0.1f, Speed.Value) / 4f);
                 _lift += (wantLift - _lift) * (wantLift > _lift ? k : kDown);
                 _zoom += (wantZoom - _zoom) * (wantZoom > _zoom ? k : kDown);
+                _lower += (wantLower - _lower) * k;   // both ways at the normal speed (coming back up = rising)
             }
 
             // Ground floor: how far below the wanted clearance the camera (or the line to it) is, from where the
@@ -263,11 +282,19 @@ internal static class SmartCamera
             if (own) _ownY = true;
             else
             {
-                if (_ownY) { _ownY = false; _baseY = Mathf.Clamp(y.Value - _lift - _floor, 0f, 1f); }
+                if (_ownY) { _ownY = false; _baseY = Mathf.Clamp(y.Value - _lift - _floor + _lowerInAxis, 0f, 1f); }
                 // Downhill it may go above MaxHeight (DownhillExtra): with a low MaxHeight (his 0.2) a -40% descent
                 // asked for lift 0.6 and stayed at 0.2, the camera half in the hill behind the car (2026-11-08).
                 float top = Mathf.Min(yHi, MaxHeight.Value + (reversing ? 0f : DownhillExtra.Value * down));
                 float wantY = Mathf.Clamp(_baseY + _lift, yLo, Mathf.Max(yLo, top));
+                // Uphill lower: first down the height axis; what's left goes below the lowest the game allows by
+                // lowering the chase camera's bottom orbit (his Height is 0: the axis had nothing left to give).
+                // The ground wins: never more than _dropCap (UpdateDropCap), which backs off at once when short of room.
+                float lowerM = Mathf.Min(_lower, _dropCap);
+                _lowerInAxis = Mathf.Clamp(lowerM / _unitM, 0f, wantY - yLo);
+                wantY -= _lowerInAxis;
+                SetBelow(__instance, Mathf.Clamp(lowerM - _lowerInAxis * _unitM, 0f, 5f));
+                _lowerAppliedM = lowerM;
                 // The ground floor goes on top (grows while the camera is too low, see UpdateFloor), up to nearly
                 // straight down from above.
                 wantY = Mathf.Min(wantY + _floor, Mathf.Max(wantY, 0.95f * yHi));
@@ -285,14 +312,21 @@ internal static class SmartCamera
                 try { blocked = BlockedView(main.transform.position, car.transform, rb, out what); }
                 catch (Exception e) { _blockCheckBroken = true; Plugin.ErrorOnce("smart camera view check (switched off)", e); }
             }
+            // While you turn the camera yourself (D-pad, mouse, stick) and for half a second after, the zoom stays
+            // where it is: sweeping round past trees and rocks zoomed it in and out quickly (JonkoMonk 2026-11-13).
+            // A block also has to last 0.25 s before it zooms in, so a single trunk passing the line doesn't pump it.
+            _turnedAt = own ? now : _turnedAt;
+            bool turning = now - _turnedAt < 0.5f;
             if (blocked)
             {
+                _blockedFor += dt;
                 _clearFor = 0f;
                 if (what != _blockedBy) { _blockedBy = what; _seen += $" (view blocked by {what})"; }
             }
-            else { _clearFor += dt; if (_clearFor > 1f) _blockedBy = ""; }
-            float wantIn = blocked || (_clearFor < 1f && _in > 0.01f) ? 1f : 0f;
-            _in += (wantIn - _in) * (1f - Mathf.Exp(-dt * (wantIn > _in ? 4f : 1.2f)));
+            else { _blockedFor = 0f; _clearFor += dt; if (_clearFor > ClearWait) _blockedBy = ""; }
+            float wantIn = (blocked && _blockedFor >= 0.25f) || (_clearFor < ClearWait && _in > 0.01f) ? 1f : 0f;
+            if (turning) { if (_in > 0.01f) _clearFor = 0f; }   // hold; it eases out ClearWait after you stop if clear
+            else _in += (wantIn - _in) * (1f - Mathf.Exp(-dt * (wantIn > _in ? 4f : 1.2f)));
             float total = _zoom - 0.45f * _in;
             // The Distance setting is the base the smart moves add to (set when it changes; your own zooming
             // moves the base until the game restarts, like Height).
@@ -311,6 +345,8 @@ internal static class SmartCamera
             {
                 _nextLog = now + 1f;
                 if (_floor > 0.005f || _short > 0f) _seen += $" (ground: {(_short > 0f ? $"{_short:0.0} m short" : "clear")}, floor +{_floor:0.00})";
+                if (_lower > 0.05f) _seen += $" (uphill lower {_lowerAppliedM:0.0} of {_lower:0.0} m{(_belowM > 0.05f ? $", {_belowM:0.0} m below the lowest" : "")}" +
+                                            $"{(_dropCap < _lower - 0.05f ? ", ground limits it" : "")})";
                 Plugin.Info($"smart cam: {kmh:0} km/h{(reversing ? " REVERSE" : "")} slope {slope * 100:0}% side {side * 100:0}% " +
                             $"crest {crest * 100:0}% drop {drop:0.0} m trees {treesAround}/{Trees.Near} | want x {wantX:0} lift {wantLift:0.00} zoom {wantZoom:0.00} " +
                             $"| now x {x.Value:0} y {y.Value:0.00} lift {_lift:0.00} zoom {_zoom:0.00} in {_in:0.00} idle {(_idle > 50f ? 0f : _idle):0.0}s{_seen}");
@@ -323,8 +359,9 @@ internal static class SmartCamera
     // Out of the car / in menus: give back the zoom we added, gently (the height is ours anyway).
     static void Unwind(CinemachineFreeLook fl, float dt)
     {
-        if (Mathf.Abs(_appliedZoom) < 1e-3f) return;
         if (CockpitLink.CockpitActive || Menu.IsOpen) return;   // keep it for when you come back
+        if (_belowM > 0f) { _lower = _lowerInAxis = _lowerAppliedM = _dropCap = 0f; RestoreOrbit(fl); }
+        if (Mathf.Abs(_appliedZoom) < 1e-3f) return;
         float zoom = _appliedZoom * Mathf.Exp(-dt * 2f);
         SetZoom(zoom);
         _appliedZoom = _zoom = zoom;
@@ -332,36 +369,98 @@ internal static class SmartCamera
 
     // ---- ground floor ----
     static float _floor, _short;   // extra height from the ground floor (y axis units), metres short now
+    static float _shortL, _room;   // the same for the uphill lowering (at least 1 m clearance), room to spare
 
     static void UpdateFloor(Vector3 cam, Vector3 focus, float dt)
     {
         float need = GroundClearance.Value;
-        if (need <= 0f) { _floor = 0f; _short = 0f; return; }
+        float needL = Mathf.Max(need, 1f);   // the uphill lowering keeps at least 1 m, even with GroundClearance off
         // The camera needs `need` metres; the line to the car a bit less near the car (the car itself sits on the
         // ground there). Worst point along the line, from 30% of the way out.
-        float worst = float.NegativeInfinity, room = float.PositiveInfinity;
+        float worst = float.NegativeInfinity, worstL = float.NegativeInfinity, room = float.PositiveInfinity;
         for (int i = 3; i <= 10; i++)
         {
             float t = i / 10f;
             var p = Vector3.Lerp(focus, cam, t);
             float clear = p.y - Ground(p);
-            float want = Mathf.Lerp(0.5f, need, (t - 0.3f) / 0.7f);
-            worst = Mathf.Max(worst, want - clear);
-            room = Mathf.Min(room, clear - want);
+            float f = (t - 0.3f) / 0.7f;
+            worst = Mathf.Max(worst, Mathf.Lerp(0.5f, need, f) - clear);
+            float wantL = Mathf.Lerp(0.5f, needL, f);
+            worstL = Mathf.Max(worstL, wantL - clear);
+            room = Mathf.Min(room, clear - wantL);
         }
+        _shortL = Mathf.Max(0f, worstL);
+        _room = room;
+        UpdateDropCap(dt);
+        if (need <= 0f) { _floor = 0f; _short = 0f; return; }
         _short = Mathf.Max(0f, worst);
         if (_short > 0f)
         {
+            // While the uphill lowering is on, it backs off first (UpdateDropCap); the floor only grows after that.
             // About 0.1 of the height axis per metre short, applied within a few frames.
-            _floor = Mathf.Min(0.8f, _floor + Mathf.Clamp(_short * 0.12f, 0.01f, 0.25f) * Mathf.Clamp01(dt * 8f));
+            if (_lowerAppliedM < 0.05f)
+                _floor = Mathf.Min(0.8f, _floor + Mathf.Clamp(_short * 0.12f, 0.01f, 0.25f) * Mathf.Clamp01(dt * 8f));
         }
         else if (room > 0.6f) _floor = Mathf.Max(0f, _floor - 0.06f * dt);   // plenty of room: ease back down
+    }
+
+    // How far the uphill lowering may go: short of room = back off at once (by what's missing, within ~0.1 s);
+    // only with room to spare (0.5 m) creep down again, 0.5 m/s. 1.1.4 build 1 let the reactive floor fight a
+    // lowering that kept pushing, and the camera went into steep climbs (2026-11-09).
+    static float _dropCap, _lowerAppliedM;
+    static void UpdateDropCap(float dt)
+    {
+        if (_shortL > 0f) _dropCap = Mathf.Max(0f, Mathf.Min(_dropCap, _lowerAppliedM) - Mathf.Max(_shortL, 0.1f) * Mathf.Clamp01(dt * 10f) - 0.01f);
+        else if (_room > 0.5f) _dropCap = Mathf.Min(_dropCap + 0.5f * dt, _lower + 0.25f);
+    }
+
+    // ---- uphill: below the lowest the game allows ----
+    // The height axis runs from the chase camera's bottom orbit (0) through the middle one (0.5) to the top (1).
+    // Below 0 we lower the bottom orbit itself (height above the car, metres), and put it back afterwards.
+    // Cinemachine re-reads the orbits every update (UpdateCachedSpline), so a change shows the same frame.
+    static float _lower, _lowerInAxis, _belowM, _unitM = 4f;   // smoothed uphill lower (m), part on the axis (units), metres below, metres per axis unit
+    static IntPtr _orbitOf;
+    static float _botH = float.NaN, _midH, _botWritten = float.NaN;
+    static bool _orbitBroken;
+
+    static void SetBelow(CinemachineFreeLook fl, float metres)
+    {
+        if (_orbitBroken) return;
+        // Its own try: if it fails, the rest of the camera keeps working (it then just stops at the lowest).
+        try
+        {
+            var o = fl.m_Orbits;
+            if (o == null || o.Length < 3) return;
+            float cur = o[2].m_Height;
+            // Not lowered now (the game's own value), a new camera, or the game changed our value: take it as the original.
+            if (fl.Pointer != _orbitOf || float.IsNaN(_botWritten) || Mathf.Abs(cur - _botWritten) > 1e-3f)
+            {
+                _orbitOf = fl.Pointer; _botH = cur; _midH = o[1].m_Height; _botWritten = float.NaN;
+                _unitM = 2f * Mathf.Max(0.5f, _midH - _botH);   // one axis unit: 0..0.5 spans bottom..middle orbit
+            }
+            if (float.IsNaN(_botWritten) && metres < 1e-4f) { _belowM = 0f; return; }   // not touched, nothing to do
+            float m = metres;
+            float h = _botH - m;
+            if (Mathf.Abs(cur - h) > 1e-4f) o[2] = new CinemachineFreeLook.Orbit(h, o[2].m_Radius);
+            _botWritten = m < 1e-4f ? float.NaN : h;
+            _belowM = m < 1e-4f ? 0f : m;
+        }
+        catch (Exception e) { _orbitBroken = true; _belowM = 0f; Plugin.ErrorOnce("smart camera uphill lower (switched off)", e); }
+    }
+
+    static void RestoreOrbit(CinemachineFreeLook fl)
+    {
+        if (float.IsNaN(_botWritten) || fl == null || fl.Pointer != _orbitOf) return;
+        SetBelow(fl, 0f);
     }
 
     static float _sideSign = 1f;   // which side of the car the camera sits on: + = left, - = right
     static float _otherSideFor, _sinceSwap = 99f, _baseY = float.NaN, _heightOf = float.NaN;
     static bool _ownY;
     static float _in, _clearFor = 99f, _fullDist;   // zoomed in because something blocks the view (0..1)
+    static float _blockedFor, _turnedAt = -100f;
+    // Clear this long before it zooms back out (was 1 s: on rocks it pumped 0.2 -> 0.9 -> 0.2 within 3 s, log 2026-11-13 20:06).
+    const float ClearWait = 2f;    // how long the view has been blocked; when you last turned the camera
     static string _blockedBy = "";
     static bool _blockCheckBroken;
     static float _mySide = 1f, _flatFor, _turnUntil, _distanceOf = float.NaN;   // your side (+ = left), from the button
@@ -386,7 +485,7 @@ internal static class SmartCamera
 
     static void ResetState()
     {
-        _appliedZoom = _lift = _zoom = _in = _floor = 0f;
+        _appliedZoom = _lift = _zoom = _in = _floor = _lower = _lowerInAxis = _lowerAppliedM = _dropCap = 0f;
         _engage = 0f;
         _zoomBase = _zoomWritten = float.NaN;
     }
@@ -516,7 +615,16 @@ internal static class SmartCamera
         var y = fl.m_YAxis;
         int terrains = 0;
         try { terrains = Terrain.activeTerrains?.Length ?? 0; } catch { }
+        string orbits = "";
+        try
+        {
+            var o = fl.m_Orbits;
+            for (int i = 0; i < (o?.Length ?? 0); i++) orbits += $"{(i > 0 ? ", " : "")}{o[i].m_Height:0.0}/{o[i].m_Radius:0.0}";
+            if (o != null && o.Length >= 3) _unitM = 2f * Mathf.Max(0.5f, o[1].m_Height - o[2].m_Height);
+        }
+        catch { orbits = "?"; }
         Plugin.Info($"smart cam: chase camera '{fl.name}' binding {fl.m_BindingMode}, x axis {x.m_MinValue}..{x.m_MaxValue} wrap {x.m_Wrap} " +
-                    $"value {x.Value:0}, y axis {y.m_MinValue}..{y.m_MaxValue} value {y.Value:0.00}, {terrains} terrain(s), side slope {SideSlope.Value}");
+                    $"value {x.Value:0}, y axis {y.m_MinValue}..{y.m_MaxValue} value {y.Value:0.00}, orbits (height/radius m) {orbits}, " +
+                    $"{terrains} terrain(s), side slope {SideSlope.Value}");
     }
 }

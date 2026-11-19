@@ -20,6 +20,7 @@ internal static class Settings
     public static ConfigEntry<float> ThrottleDeadzone, BrakeDeadzone, ThrottleFullAt, BrakeFullAt, ClutchDeadzone, ClutchFullAt;
     public static ConfigEntry<string> SetupKey;
     public static ConfigEntry<bool> ShowMessages;
+    public static ConfigEntry<bool> SettingsHintShown;
 
     public static ConfigEntry<float> LogInterval;
 
@@ -67,6 +68,10 @@ internal static class Settings
             cfg.Save();
         }
 
+        // 1.2.0: the first drive's start line says which key opens the settings menu (once, then true).
+        // A new key, so existing cfgs get the hint once too.
+        SettingsHintShown = cfg.Bind("Debug", "SettingsHintShown", false, "Internal: the start message has shown 'Press F3 for the settings menu' once.");
+
         LogInterval = cfg.Bind("Debug", "LogIntervalSeconds", 1.0f, "How often wheel values are written to the mod loader's log (0 = never).");
 
         Ffb.Bind(cfg);
@@ -76,6 +81,7 @@ internal static class Settings
         GearProbe.Bind(cfg);
         SmartCamera.Bind(cfg);
         GameMenus.Bind(cfg);
+        UpdateCheck.Bind(cfg);
 
         // 1.1.2: the button-press display is off by default now (a player asked). Older cfgs saved the old
         // default (true) and a deliberate "on" can't be told apart from it, so switch it off once for everyone;

@@ -572,6 +572,8 @@ internal static class Buttons
     static ushort[] _tapVk = Array.Empty<ushort>();
     static float _tapUntil;
 
+    public static bool ActionHasKey(string name) => _actions.FirstOrDefault(x => x.Name == name)?.Vk.Length > 0;
+
     public static bool TapAction(string name, float now)
     {
         var a = _actions.FirstOrDefault(x => x.Name == name);

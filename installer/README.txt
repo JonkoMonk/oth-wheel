@@ -90,6 +90,10 @@ mod) with its own Install.bat keeps what's already installed.
 @installer
 
 Prefer to install by hand? See the "Manual install" folder.
+
+UPDATING: extract the new zip and double-click its Install.bat (game
+closed). It says what it updates (e.g. "wheel 1.1.3 -> 1.2.0"), keeps
+your settings and wheel setups, and leaves no old files behind.
 @end
 @manual
 This is the MANUAL download: no installer, you copy the files into
@@ -129,6 +133,9 @@ uninstall)? Get the installer zip from GitHub:
 No original game files are changed. Using BepInEx instead of
 MelonLoader? Take the installer zip from GitHub (it has the BepInEx
 version).
+
+UPDATING: close the game and copy the new zip's folders over the old
+ones (replace the files). Your settings and wheel setups are kept.
 @end
 @wheel+manual
 
@@ -218,6 +225,12 @@ Then save. Your setup is used automatically from then on.
 Wheels set to more than 540 degrees (e.g. 900): the mod still gives
 full steering at 540 degrees and you feel the end stop there.
 
+H-pattern shifter: Setup tools > 7 sets it up. Setup tools > 0 (or
+F3 > Clutch & shifter > "Clutch to shift") makes the clutch needed to
+shift, like a real car: without the clutch pedal pressed the gear
+grinds (a buzz in the wheel) and stays in neutral until you press the
+clutch. Off by default; needs a clutch pedal.
+
 SHARE YOUR SETUP: if your wheel isn't built in yet, choose "share" when
 saving (or menu option 5). It saves the setup as a small file on your
 desktop. Send that file to the mod's author (for example through the
@@ -248,8 +261,9 @@ id and your axis/button choices. Nothing is ever sent automatically.
   S1 ................. map (short press): opens on your car, with the
                        selection circle in the middle. Hold for half
                        a second = quick action wheel (the game's Q):
-                       D-pad left/right steps round it, up/down =
-                       top / bottom item, A = OK, B = close
+                       the first D-pad press jumps to that side's
+                       item, the next presses step round the ring
+                       the way the arrow points, A = OK, B = close
   MENU ............... pause menu / back
   RADIO .............. force feedback profile: Soft / Normal / Realistic / Heavy
   D-pad .............. turn the camera; arrows in menus; moves the
@@ -338,7 +352,8 @@ Get in:  zoom the camera in as far as it goes, then zoom in once more
 Get out: zoom out, or the same key / button again.
 
 Look around: mouse, gamepad right stick, or the wheel's D-pad. The
-head turns back to the front by itself, and leans into corners a bit.
+head turns back to the front by itself, and leans into corners a bit
+(Numpad 5 switches the leaning off and back on).
 Numpad 8/2, 4/6, 9/3 move your seat; 7/1 tilt the view; +/- zoom.
 The view hides by itself in menus, the map, camp and photo mode.
 
@@ -399,7 +414,8 @@ Every setting has a short explanation above it. Examples:
                         Reverse, ZoomInWhenBlocked, SideReturn,
                         Distance, DpadSpeed / DpadMaxSpeed,
                         ReverseKeepsYourTurn, ReverseRemembers,
-                        DownhillExtra, GroundClearance
+                        DownhillExtra, UphillDrop,
+                        GroundClearance
   [Map] ............... OpenOnCar (the map opens on your car),
                         DpadSpeed (how slowly the D-pad starts)
   PhotoLookSpeed ...... photo mode: D-pad look speed
@@ -412,6 +428,8 @@ Every setting has a short explanation above it. Examples:
                         driving: menus, photo mode, map, music
   QuickMenuOnMapHold .. hold the map button = quick action wheel
                         (off, or give "QuickMenu" its own button)
+  [Shifter] ........... ClutchRequired (clutch needed to shift),
+                        ClutchToShift (how far down), GrindBuzz
 
 Your wheel setups (from the wizard) are in
   MelonLoader:  <game folder>\UserData\OthWheel\setups\
@@ -420,6 +438,19 @@ Delete the settings file to go back to the default settings.
 
 
 @end
+---------------------------------------------------------------------
+  UPDATE NOTICE
+---------------------------------------------------------------------
+When a newer version is out, a message in the game's menu tells you
+once, with a button that opens its download page and a "Don't show
+this again" box. Nothing is downloaded or changed by itself.
+@wheel
+After that, F3 shows it in one line until you update.
+@end
+To switch these checks off: Check = false under [Updates] in the
+settings file.
+
+
 ---------------------------------------------------------------------
   PROBLEMS?
 ---------------------------------------------------------------------

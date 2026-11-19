@@ -36,6 +36,15 @@ internal static class CarPhysics
     // still has the clutch axis in its setup; it then never moves).
     public static bool ClutchSeen { get; private set; }
     public static bool RealClutchActive => _applied;
+    // The local car's engine is running (or cranking). True when unknown, so clutch-required shifting still applies.
+    public static bool EngineRunning
+    {
+        get
+        {
+            try { return _car == null || _car.WasCollected || _car.data.Get(Channel.Vehicle, VehicleData.EngineWorking) != 0 || _car.data.Get(Channel.Vehicle, VehicleData.EngineStarting) != 0; }
+            catch { return true; }
+        }
+    }
 
     static VPVehicleController _car;
     static FunselektorFusionVPStandardInput _std;

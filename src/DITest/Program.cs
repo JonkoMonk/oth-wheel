@@ -9,6 +9,7 @@ namespace OthWheel;
 
 // Usage: DITest [seconds=5] [ffb=none|zero|push]
 //   zero: open the force feedback device exclusively and play a 0-strength force (nothing moves)
+//   scantime [n=10]: times the cheap device-list check, the controller list and opening each device (what the mod does per scan)
 //   push: +2000 for 0.4 s then -2000 for 0.4 s, prints which way the steering axis moved
 internal static class Program
 {
@@ -18,6 +19,7 @@ internal static class Program
     static int Main(string[] args)
     {
         if (args.Length > 0 && args[0] == "profiles") return ProfileTest();
+        if (args.Length > 0 && args[0] == "scantime") return ScanTime(args.Length > 1 ? int.Parse(args[1]) : 10);
         int seconds = args.Length > 0 ? int.Parse(args[0]) : 5;
         string ffb = args.Length > 1 ? args[1] : "none";
         // DirectInput wants a top-level window of this process.
@@ -127,5 +129,27 @@ internal static class Program
         Check(all[0].Labels.Count == r3.Labels.Count, "labels copied into own setup");
         Console.WriteLine(fails == 0 ? "ALL OK" : $"{fails} FAILED");
         return fails;
+    }
+
+    static int ScanTime(int n)
+    {
+        IntPtr hwnd = CreateWindowExW(0, "STATIC", "DITest", 0, 0, 0, 10, 10, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        if (!DInput.Init()) { Console.WriteLine("init failed: " + DInput.LastError); return 1; }
+        Console.WriteLine($"DirectInput init {sw.Elapsed.TotalMilliseconds:0.0} ms");
+        for (int r = 1; r <= n; r++)
+        {
+            sw.Restart(); long fp = Win32.InputDeviceFingerprint(); double fpMs = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); var list = DInput.Enumerate(); double listMs = sw.Elapsed.TotalMilliseconds;
+            var opens = new List<string>();
+            foreach (var i in list)
+            {
+                sw.Restart(); var d = DInput.Device.Open(i, hwnd, false); d?.Read(); double o = sw.Elapsed.TotalMilliseconds;
+                opens.Add($"{i.Name} {o:0.0} ms{(d == null ? " FAILED " + DInput.LastError : "")}");
+                d?.Dispose();
+            }
+            Console.WriteLine($"#{r}: device-list check {fpMs:0.000} ms (fp {fp:X}), controller list {listMs:0.0} ms ({list.Count}), open: {string.Join("; ", opens)}");
+        }
+        return 0;
     }
 }

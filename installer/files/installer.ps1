@@ -393,11 +393,39 @@ function Get-PartVersion([string]$file) {
     return '?'
 }
 
+# What an earlier install put there, so running Install.bat again is an update: which of our mods load now
+# (their DLLs, wherever they are) and their versions from the install log (none for a manual install).
+function Get-Installed([string]$game) {
+    $logPath = if (Test-BepInEx $game) { Join-Path $game 'BepInEx\OthWheel-install.txt' } else { Join-Path $game 'UserData\OthWheel-install.txt' }
+    $log = Read-InstallLog $logPath
+    $wheelOn = @(Find-ModCopies $game 'OthWheel').Count -gt 0
+    $cockpitOn = @(Find-ModCopies $game 'OthCockpit').Count -gt 0
+    $wv = if ($wheelOn -and $log['Wheel mod installed'] -ne 'False') { $log['Wheel mod version'] } else { $null }
+    $cv = if ($cockpitOn -and $log['Cockpit installed'] -eq 'True') { $log['Cockpit version'] } else { $null }
+    return @{ Wheel = $wheelOn; WheelVersion = $wv; Cockpit = $cockpitOn; CockpitVersion = $cv }
+}
+
+function Format-Update([string]$name, [string]$old, [string]$new) {
+    if (-not $old -or $old -eq '?') { return "$name (installed version) -> $new" }
+    if ($old -eq $new) { return "$name $new again" }
+    return "$name $old -> $new"
+}
+
 function Install-Mod {
     if (-not $HasWheel -and -not $HasCockpit) { Fail 'This installer folder contains no mod files. Extract the whole zip again.' }
     $wheelVersion = Get-PartVersion (Join-Path $FilesDir 'version.txt')
     $cockpitVersion = Get-PartVersion (Join-Path $CockpitFiles 'version.txt')
     $both = $HasWheel -and $HasCockpit
+
+    # Found first, so a re-run can say what it updates.
+    $game = Find-Game
+    Wait-GameClosed
+    $inst = Get-Installed $game
+    $upd = @()
+    if ($HasWheel -and $inst.Wheel) { $upd += Format-Update 'wheel' $inst.WheelVersion $wheelVersion }
+    if ($HasCockpit -and $inst.Cockpit) { $upd += Format-Update 'cockpit' $inst.CockpitVersion $cockpitVersion }
+    $isUpdate = $upd.Count -gt 0
+
     $intro = if ($both) { "This installs mods for over the hill. You choose the parts in the next two questions:`n`n" } else { "This installs a mod for over the hill:`n`n" }
     if ($HasWheel) {
         $intro += "WHEEL MOD $wheelVersion (for steering wheels)`n" +
@@ -411,20 +439,29 @@ function Install-Mod {
             "  - working dials, warning lights, steering wheel, pedals and levers`n" +
             "  - early version: all cars have a cockpit, many still with rough spots`n`n"
     }
-    $r = Show-Message ($intro +
-        "It uses a mod loader: MelonLoader (installed if the game has no mod loader yet), or BepInEx if you already use that. " +
-        "No original game files are changed, and Uninstall.bat removes everything again.`n`n" +
-        "Continue?") 'Question' 'YesNo'
+    if ($isUpdate) {
+        # Re-run over an earlier install: the installed parts are updated without asking again.
+        $intro = "Updating: $($upd -join ', ').`nYour settings and wheel setups are kept.`n`n"
+        if ($HasWheel -and -not $inst.Wheel) { $intro += "This zip also has the WHEEL MOD, which isn't installed: the next question asks whether to add it.`n`n" }
+        if ($HasCockpit -and -not $inst.Cockpit) { $intro += "This zip also has the COCKPIT VIEW, which isn't installed: the next question asks whether to add it.`n`n" }
+        $r = Show-Message ($intro + "Continue?") 'Question' 'YesNo'
+    } else {
+        $r = Show-Message ($intro +
+            "It uses a mod loader: MelonLoader (installed if the game has no mod loader yet), or BepInEx if you already use that. " +
+            "No original game files are changed, and Uninstall.bat removes everything again.`n`n" +
+            "Continue?") 'Question' 'YesNo'
+    }
     if ($r -ne 'Yes') { exit 0 }
     $wheel = $HasWheel
     $cockpit = $HasCockpit
     if ($both) {
-        $wheel = (Show-Message "Install the WHEEL MOD?`n`n(Yes if you play with a steering wheel. No for keyboard / controller only.)" 'Question' 'YesNo') -eq 'Yes'
-        $cockpit = (Show-Message "Install the COCKPIT VIEW?`n`n(First-person view from the driver's seat.)" 'Question' 'YesNo') -eq 'Yes'
+        $also = if ($isUpdate) { 'Also install' } else { 'Install' }
+        $wheel = if ($isUpdate -and $inst.Wheel) { $true } else {
+            (Show-Message "$also the WHEEL MOD?`n`n(Yes if you play with a steering wheel. No for keyboard / controller only.)" 'Question' 'YesNo') -eq 'Yes' }
+        $cockpit = if ($isUpdate -and $inst.Cockpit) { $true } else {
+            (Show-Message "$also the COCKPIT VIEW?`n`n(First-person view from the driver's seat.)" 'Question' 'YesNo') -eq 'Yes' }
         if (-not $wheel -and -not $cockpit) { Show-Message 'Nothing selected, so nothing was installed.' | Out-Null; exit 0 }
     }
-
-    $game = Find-Game
     Wait-GameClosed
 
     $hasBep = Test-BepInEx $game
@@ -451,6 +488,7 @@ function Install-Mod {
         "Cockpit version: $(if ($cockpit) { $cockpitVersion } else { $before['Cockpit version'] })",
         "Mod loader was already installed before: $($hasBep -or $hasMelon)",
         "Game DirectInput setting: $(if ($wheel -or -not $before['Game DirectInput setting']) { $diResult } else { $before['Game DirectInput setting'] })")
+    if ($isUpdate) { $lines += "Updated: $($upd -join ', ')" }
     Set-Content -Path $result.Log -Value $lines
     if ($diResult -eq 'missing') {
         Show-Message ("The game's settings file doesn't exist yet (the game was never started on this PC).`n`n" +
@@ -481,7 +519,7 @@ function Install-Mod {
     if ($cockpit) { $parts += "cockpit view ($cars car$(if ($cars -ne 1) { 's' }))" }
     $list = @()
     if ($wheel) { $list += "Plug in the wheel and start its driver software (Moza Pit House, Logitech G HUB, ...)." }
-    $list += "Start the game from Steam. $($result.FirstStart)"
+    $list += if ($isUpdate) { "Start the game from Steam as usual." } else { "Start the game from Steam. $($result.FirstStart)" }
     if ($wheel) {
         $list += "Keep the game window in front while it starts (don't alt-tab)."
         $list += "Get into the car.`n     - Moza R3: works right away.`n" +
@@ -493,8 +531,16 @@ function Install-Mod {
     }
     $steps = "FIRST START - please read:`n"
     for ($i = 0; $i -lt $list.Count; $i++) { $steps += "  $($i + 1). $($list[$i])`n" }
-    Show-Message ("Installed: $($parts -join ' + ') (mod loader: $loaderName)!`n`n$oldNote$presetNote" + $steps +
-        "`nLater starts are fast again. The README has the details.`n`nOpen the README now?") 'Information' 'YesNo' |
+    $head = "Installed: $($parts -join ' + ') (mod loader: $loaderName)!`n`n"
+    if ($isUpdate) {
+        $head = "Updated: $($upd -join ', ').`nYour settings and wheel setups are kept.`n`n"
+        $added = @()
+        if ($wheel -and -not $inst.Wheel) { $added += 'wheel mod' }
+        if ($cockpit -and -not $inst.Cockpit) { $added += "cockpit view ($cars car$(if ($cars -ne 1) { 's' }))" }
+        if ($added.Count -gt 0) { $head += "Added: $($added -join ' + ').`n`n" } else { $steps = "Start the game from Steam as usual.`n" }
+    }
+    $later = if ($isUpdate) { "`nThe README has the details.`n`nOpen the README now?" } else { "`nLater starts are fast again. The README has the details.`n`nOpen the README now?" }
+    Show-Message ($head + "$oldNote$presetNote" + $steps + $later) 'Information' 'YesNo' |
         ForEach-Object { if ($_ -eq 'Yes') { Start-Process notepad.exe (Join-Path $PackageDir 'README.txt') } }
 }
 

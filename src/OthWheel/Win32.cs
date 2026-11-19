@@ -53,6 +53,29 @@ internal static class Win32
     public static bool IsKeyDown(ushort vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
     [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", SetLastError = true)] static extern uint GetRawInputDeviceList(IntPtr list, ref uint count, uint size);
+
+    // A cheap fingerprint of Windows' input device list (count + handles of every keyboard, mouse and
+    // HID device). It changes when something is plugged in or out, so the slow DirectInput scan only has
+    // to run then. 0 if Windows wouldn't say.
+    public static unsafe long InputDeviceFingerprint()
+    {
+        const uint ItemSize = 16; // RAWINPUTDEVICELIST on x64: HANDLE hDevice + DWORD dwType (+ padding)
+        uint count = 0;
+        if (GetRawInputDeviceList(IntPtr.Zero, ref count, ItemSize) != 0 || count == 0) return 0;
+        for (int tries = 0; tries < 3; tries++)
+        {
+            uint n = count + 4;
+            var buf = new long[n * 2];
+            uint got;
+            fixed (long* p = buf) got = GetRawInputDeviceList((IntPtr)p, ref n, ItemSize);
+            if (got == uint.MaxValue) { count = n; continue; } // list grew in between: try again
+            long h = got;
+            for (uint i = 0; i < got; i++) h = h * 1000003 ^ buf[i * 2];
+            return h == 0 ? 1 : h;
+        }
+        return 0;
+    }
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
 
     static readonly uint _pid = (uint)Process.GetCurrentProcess().Id;

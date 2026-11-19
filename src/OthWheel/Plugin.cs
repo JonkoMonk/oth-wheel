@@ -10,7 +10,7 @@ namespace OthWheel;
 // and logging, call Start, then put StatusBehaviour on a GameObject.
 public static class Plugin
 {
-    public const string Guid = "jonkomonk.oth.wheel", Name = "OTH Wheel", Version = "1.1.3", Author = "JonkoMonk";
+    public const string Guid = "jonkomonk.oth.wheel", Name = "OTH Wheel", Version = "1.2.0", Author = "JonkoMonk";
 
     static Action<string> _info = Console.WriteLine, _warn = Console.WriteLine, _error = Console.WriteLine;
     static readonly HashSet<string> _reported = new();
@@ -31,6 +31,7 @@ public static class Plugin
         SmartCamera.Install(harmony);
         GameMenus.Install(harmony);
         DirectInputLate.Init(harmony);
+        UpdateNotice.Start();   // background thread, asks GitHub once
     }
 
     public static void Info(string s) => _info(s);

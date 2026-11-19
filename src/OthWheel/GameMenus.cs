@@ -214,6 +214,7 @@ internal static unsafe class GameMenus
     }
 
     static string _mapName;
+    public static string MapName => _mapName;   // the game's input map by name ("UI" = main menu / pause menu)
 
     static Context ReadContext()
     {
@@ -293,7 +294,8 @@ internal static unsafe class GameMenus
         _qDownAt = now;
         _havePick = false;
         Plugin.Info("quick menu: opened (holding Q)");
-        return "Quick menu: D-pad = choose, A = OK, B = close";
+        // Only with "Show button presses" on: the yellow line stayed top left while using the wheel (JonkoMonk 2026-11-13).
+        return Buttons.ShowButtonNumbers.Value ? "Quick menu: D-pad = choose, A = OK, B = close" : null;
     }
 
     static void ReleaseQ()
@@ -349,20 +351,23 @@ internal static unsafe class GameMenus
             if (items.Count == 0) return;
             items.Sort((x, y) => x.Angle.CompareTo(y.Angle));
 
-            int target;
-            if (dir.x != 0f)
+            // JonkoMonk's design (1.2.0): the first press jumps to that side's item (left = leftmost, up = top ...).
+            // After that each press steps one item round the ring the way the arrow points from where you are:
+            // at the top/bottom left/right step left/right, on the left/right item up/down step up/down.
+            // An arrow straight out from the current item, or straight back across the wheel, jumps to that
+            // side's item instead (out = stays, across = the opposite item).
+            var press = new Vector2(dir.x, -dir.y);   // camera direction y: -1 = up; press: y up = screen up
+            float pressAngle = Clockwise(press);
+            int target = Nearest(items, pressAngle);
+            if (_havePick)
             {
-                var cur = _radial.currentlySelectedRadialMenuItem;
-                int i = cur == null ? -1 : items.FindIndex(x => x.Item.Pointer == cur.Pointer);
-                if (i < 0) target = dir.x > 0f ? 0 : items.Count - 1;
-                else target = (i + (dir.x > 0f ? 1 : -1) + items.Count) % items.Count;
-            }
-            else
-            {
-                float want = dir.y < 0f ? 0f : 180f;   // camera direction y: -1 = up
-                target = 0;
-                for (int i = 1; i < items.Count; i++)
-                    if (AngleGap(items[i].Angle, want) < AngleGap(items[target].Angle, want)) target = i;
+                int i = Nearest(items, Clockwise(_pick));
+                float a = items[i].Angle * Mathf.Deg2Rad;
+                var radial = new Vector2(Mathf.Sin(a), Mathf.Cos(a));
+                var clockwise = new Vector2(Mathf.Cos(a), -Mathf.Sin(a));   // way round the ring, clockwise
+                float along = Vector2.Dot(press, clockwise), outward = Vector2.Dot(press, radial);
+                if (Mathf.Abs(along) >= Mathf.Abs(outward) - 0.001f)
+                    target = (i + (along > 0f ? 1 : -1) + items.Count) % items.Count;
             }
 
             _pick = items[target].Dir;
@@ -375,6 +380,14 @@ internal static unsafe class GameMenus
     }
 
     static float AngleGap(float a, float b) { float g = Mathf.Abs(a - b) % 360f; return g > 180f ? 360f - g : g; }
+
+    static int Nearest(List<(ContextUIRadialMenuItem Item, Vector2 Dir, float Angle)> items, float angle)
+    {
+        int best = 0;
+        for (int i = 1; i < items.Count; i++)
+            if (AngleGap(items[i].Angle, angle) < AngleGap(items[best].Angle, angle) - 0.5f) best = i;
+        return best;
+    }
 
     // Clockwise angle from straight up (0..360) of a point around a centre.
     static float Clockwise(Vector2 d) { float a = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg; return a < 0f ? a + 360f : a; }

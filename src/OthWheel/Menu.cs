@@ -75,6 +75,7 @@ internal static class Menu
 
     public static void Update(float now)
     {
+        FlushNumLog();
         if (!_open) return;
         try { Tick(now); }
         catch (Exception e) { Plugin.ErrorOnce("menu", e); Close(); }
@@ -151,9 +152,20 @@ internal static class Menu
         switch (p)
         {
             case Page.Main:
+                foreach (var u in UpdateNotice.All())
+                {
+                    var f = u;
+                    list.Add(new Item
+                    {
+                        Label = $"{f.Mod} {f.Latest} is out", Value = () => "Nexus",
+                        Open = () => Note(UpdateCheck.OpenPage(f.Url)),
+                        Help = (string.IsNullOrEmpty(f.WhatsNew) ? "" : f.WhatsNew + " ") +
+                               $"You have {f.Installed}. Right arrow opens its Nexus page in your web browser; nothing is downloaded by itself.",
+                    });
+                }
                 list.Add(Section("Force feedback", Page.Ffb, "Profile, strength and every detail of the force feedback."));
                 list.Add(Section("Steering & pedals", Page.Steering, "Steering lock, sensitivity, deadzones."));
-                list.Add(Section("Clutch & shifter", Page.Clutch, "Real clutch, stalling, bite, H-shifter."));
+                list.Add(Section("Clutch & shifter", Page.Clutch, "Real clutch, stalling, bite, H-shifter, clutch needed to shift."));
                 list.Add(Section("Camera", Page.Camera, "The smart third-person camera: which side, how high, how far, what it does on slopes and among trees. You see each change at once."));
                 list.Add(Section("Buttons", Page.Buttons, "Which wheel button does what."));
                 list.Add(Bool("On-screen messages", Settings.ShowMessages,
@@ -232,6 +244,23 @@ internal static class Menu
                 list.Add(Bool("H-shifter", Shifter.Enabled, "Use the H-pattern shifter (set it up in Setup tools). Off = paddles / shift buttons only."));
                 list.Add(Choice("Range as gears", Shifter.RangeAsGears,
                     "Auto: cars with 2 gears become a 4-speed on the shifter: 1 = 1st low, 2 = 2nd low, 3 = 1st high, 4 = 2nd high, R = reverse low. Off: range stays on its own button."));
+                list.Add(Bool("Clutch to shift", Shifter.ClutchRequired,
+                    "H-shifter: a gear only goes in with the clutch pressed. Without it the gear grinds (a buzz in the wheel) and the car stays in neutral until you press the clutch. Needs a clutch pedal; not while the engine is off."));
+                list.Add(Num("Clutch needed", Shifter.ClutchToShift, 0.1f, 1f, 0.05f, Pct, "With Clutch to shift: how far the clutch pedal must be down for a gear to go in."));
+                list.Add(Num("Grind buzz", Shifter.GrindBuzz, 0f, 1f, 0.1f, v => v <= 0f ? "Off" : Pct(v), "With Clutch to shift: how hard the wheel buzzes when a gear grinds (Off = no buzz)."));
+                list.Add(Num("Grind buzz length", Shifter.GrindBuzzLength, 0.1f, 1.1f, 0.1f, v => v > 1.05f ? "While in gear" : $"{v:0.0} s",
+                    "With Clutch to shift: how long the wheel buzzes when a gear grinds. While in gear = as long as the lever sits in the gear without the clutch."));
+                list.Add(new Item
+                {
+                    Label = "After a grind", Repeat = false,
+                    Value = () => Shifter.GrindResult.Value == AfterGrind.StayInGear ? "Stay in old gear" : "Neutral",
+                    Change = _ =>
+                    {
+                        Shifter.GrindResult.Value = Shifter.GrindResult.Value == AfterGrind.StayInGear ? AfterGrind.Neutral : AfterGrind.StayInGear;
+                        Plugin.Info($"menu: After a grind {Shifter.GrindResult.Value}");
+                    },
+                    Help = "With Clutch to shift, when a gear grinds: Neutral = the car is in neutral. Stay in old gear = the gear you came from stays in. Press the clutch to get the new gear in.",
+                });
                 list.Add(new Item
                 {
                     Label = "Status",
@@ -250,10 +279,12 @@ internal static class Menu
                     Change = _ => SmartCamera.ToggleSide(),
                     Help = "Which side of the car the camera sits on, on flat ground (the camera-side button does the same). On a mountainside the slope decides.",
                 });
-                list.Add(Num("Side angle", SmartCamera.SideAngle, 0f, 60f, 5f, v => $"{v:0}°", "How far round to the side it sits when crawling (0 = straight behind). Closer to behind when fast; slopes add to it."));
+                list.Add(Num("Side angle", SmartCamera.SideAngle, 0f, 60f, 5f, v => $"{v:0}°", "How far round to the side it sits when crawling (0 = straight behind). The same on slopes, unless Slope side swing is on. Closer to behind when fast."));
+                list.Add(Num("Slope side swing", SmartCamera.SlopeSwing, 0f, 1.5f, 0.1f, v => v <= 0f ? "Off" : Pct(v), "Steep slopes and mountainsides turn it further round to the side, on top of Side angle. Off = the same side angle as on the flat."));
                 list.Add(Num("Height", SmartCamera.Height, 0f, 1f, 0.05f, Pct, "Height on the flat: 0 = lowest, 100% = straight down from above. Slopes add to it."));
                 list.Add(Num("Highest", SmartCamera.MaxHeight, 0.2f, 1f, 0.05f, Pct, "It doesn't go higher than this (100% = straight down from above), except downhill (below) and to stay out of the ground."));
                 list.Add(Num("Downhill extra height", SmartCamera.DownhillExtra, 0f, 0.6f, 0.05f, Pct, "Going downhill it may rise this much above Highest, to look over the car down the slope (0 = Highest is the limit)."));
+                list.Add(Num("Uphill lower", SmartCamera.UphillDrop, 0f, 4f, 0.25f, v => v <= 0f ? "Off" : $"{v:0.00} m", "Going uphill it goes this much lower, even below the lowest Height, so you see the climb instead of the car roof and the sky (Off = it doesn't). It only goes as low as the ground allows (Stay above the ground, at least 1 m)."));
                 list.Add(Num("Stay above the ground", SmartCamera.GroundClearance, 0f, 3f, 0.25f, v => v <= 0f ? "Off" : $"{v:0.00} m", "The camera, and the line from the car to it, stay at least this far above the ground; it rises above Highest when it has to."));
                 list.Add(Num("Distance", SmartCamera.Distance, 0.5f, 2f, 0.05f, v => $"{v:0.00}x",
                     "How far behind: 0.5x = closest, 1x = the game's normal, 2x = farthest. A little closer when crawling or among trees, further when fast or downhill."));
@@ -266,6 +297,28 @@ internal static class Menu
                 list.Add(Bool("Reversing view", SmartCamera.Reverse, "Reversing: it rises a little so you see the ground behind the car (it never swings round)."));
                 list.Add(Bool("Reversing: keep your turn", SmartCamera.ReverseKeepsYourTurn, "Reversing: when you turn the camera yourself, it stays that way until you drive forward again."));
                 list.Add(Bool("Next reverse: last view", SmartCamera.ReverseRemembers, "On = the next reverse starts with the view you chose last time you reversed. Off = with the normal view."));
+                // OTH Cockpit 0.4.4+ (CockpitLink v3): its "look into turns" setting, applied + saved by the cockpit.
+                if (CockpitLink.CockpitInstalled && CockpitLink.CockpitIntoTurn >= 0f)
+                    list.Add(new Item
+                    {
+                        Label = "Cockpit: look into turns", Repeat = false,
+                        Value = () =>
+                        {
+                            float v = CockpitLink.CockpitIntoTurnSet >= 0f ? CockpitLink.CockpitIntoTurnSet : CockpitLink.CockpitIntoTurn;
+                            return v <= 0f ? "Off" : $"{v:0}°";
+                        },
+                        Change = dir =>
+                        {
+                            float v = CockpitLink.CockpitIntoTurnSet >= 0f ? CockpitLink.CockpitIntoTurnSet : CockpitLink.CockpitIntoTurn;
+                            float[] steps = { 0f, 10f, 20f, 30f, 45f, 60f };
+                            int i = 0;
+                            for (int k = 0; k < steps.Length; k++) if (Mathf.Abs(steps[k] - v) < Mathf.Abs(steps[i] - v)) i = k;
+                            i = Mathf.Clamp(i + dir, 0, steps.Length - 1);
+                            CockpitLink.CockpitIntoTurnSet = steps[i];
+                            Plugin.Info($"menu: Cockpit look into turns {steps[i]:0}");
+                        },
+                        Help = "In the cockpit view (F6) the head turns towards where you steer, this many degrees at full lock. Off = the view stays straight ahead. (Cockpit mod setting; NumPad5 in the cockpit switches it too.)",
+                    });
                 break;
 
             case Page.Buttons:
@@ -302,8 +355,24 @@ internal static class Menu
     static Item Num(string label, ConfigEntry<float> e, float min, float max, float step, Func<float, string> fmt, string help) => new()
     {
         Label = label, Help = help, Value = () => fmt(e.Value),
-        Change = dir => e.Value = Step(e.Value, dir, min, max, step),
+        // Logged, so a test log shows what was set (2026-11-13: "Side angle 0" turned out to be 25 the whole drive).
+        Change = dir => { float old = e.Value; e.Value = Step(e.Value, dir, min, max, step); if (e.Value != old) LogNum(label, e.Value); },
     };
+
+    // Held left/right repeats: log the value once it has stayed put for a moment, not every step.
+    static string _numLabel;
+    static float _numValue, _numLogAt = -1f;
+    static void LogNum(string label, float v)
+    {
+        if (_numLabel != null && _numLabel != label) Plugin.Info($"menu: {_numLabel} {_numValue:0.###}");
+        _numLabel = label; _numValue = v; _numLogAt = Time.unscaledTime + 0.6f;
+    }
+    static void FlushNumLog()
+    {
+        if (_numLabel == null || Time.unscaledTime < _numLogAt) return;
+        Plugin.Info($"menu: {_numLabel} {_numValue:0.###}");
+        _numLabel = null;
+    }
 
     static Item Bool(string label, ConfigEntry<bool> e, string help) => new()
     {

@@ -21,6 +21,9 @@ namespace OthWheel;
 //  - built-in presets: Presets\Shifters\*.json (embedded)
 // Every gear slot is a button that is held while the lever sits in it. No button = neutral.
 public enum RangeGears { Auto, Off }
+// What the car does when a gear grinds (clutch to shift): Neutral = the lever left the old gear, so neutral;
+// StayInGear = the old gear stays in, as if the shift was refused.
+public enum AfterGrind { Neutral, StayInGear }
 
 public sealed class ShifterProfile
 {
@@ -63,13 +66,19 @@ internal static class Shifter
     static bool _armed;
     static bool Ready => Active != null && _dev != null && Enabled.Value && Settings.Enabled.Value;
     public static bool Engaged => Ready && _armed;
-    // Lever in no slot: CarPhysics puts the gearbox itself in neutral (the clutch stays held as a fallback).
-    public static bool InNeutral => Engaged && Slot == 0;
+    // Lever in no slot, or a gear that didn't go in (clutch required): CarPhysics puts the gearbox itself in
+    // neutral (the clutch stays held as a fallback).
+    public static bool InNeutral => Engaged && _inGear == 0;
+    // The slot the game gets: Slot, or 0 while the gear grinds.
+    static int _inGear;
     public static float LastChange { get; private set; } = -100f;
 
     public static string Dir => Path.Combine(Profiles.Root, "shifters");
 
     public static ConfigEntry<RangeGears> RangeAsGears;
+    public static ConfigEntry<bool> ClutchRequired;
+    public static ConfigEntry<float> ClutchToShift, GrindBuzz, GrindBuzzLength;
+    public static ConfigEntry<AfterGrind> GrindResult;
 
     public static void Bind(ConfigFile cfg)
     {
@@ -78,6 +87,23 @@ internal static class Shifter
         RangeAsGears = cfg.Bind("Shifter", "RangeAsGears", RangeGears.Auto,
             "Auto = on cars with only 2 forward gears the shifter works like a 4-speed: 1 = 1st low, 2 = 2nd low, 3 = 1st high, 4 = 2nd high, " +
             "R = reverse low (the mod switches the high/low range for you). Off = every slot is that gear, the range stays on its own button.");
+        ClutchRequired = cfg.Bind("Shifter", "ClutchRequired", false,
+            "H-shifter: a gear only goes in with the clutch pedal pressed (at least ClutchToShift). Without it the gear grinds " +
+            "(a short buzz in the wheel) and doesn't go in: the car stays in neutral until you press the clutch (lever still in the gear) " +
+            "or move the lever again. Only once a clutch pedal has been pressed this session, and only while the engine runs.");
+        ClutchToShift = cfg.Bind("Shifter", "ClutchToShift", 0.5f,
+            "With ClutchRequired: how far the clutch pedal must be pressed for a gear to go in (0.1-1; 0.5 = halfway).");
+        GrindBuzz = cfg.Bind("Shifter", "GrindBuzz", 0.4f,
+            "With ClutchRequired: strength of the buzz in the wheel when a gear grinds (0 = none, 1 = strong).");
+        // JonkoMonk's test 2026-11-13: both as settings, neutral and 0.3 s stay the defaults.
+        GrindResult = cfg.Bind("Shifter", "AfterGrind", AfterGrind.Neutral,
+            "With ClutchRequired, when a gear grinds: Neutral = the car is in neutral (the lever has left the old gear); " +
+            "StayInGear = the old gear stays in, as if the shift was refused (also while the lever crosses neutral; a lever left " +
+            "in neutral for over half a second without the clutch is neutral). Either way, pressing the clutch with the lever " +
+            "still in the new gear puts it in, and moving the lever back to the old gear just keeps it.");
+        GrindBuzzLength = cfg.Bind("Shifter", "GrindBuzzLength", 0.3f,
+            "With ClutchRequired: how long the grind buzz lasts, seconds (0.1-1; it then fades out over 0.3 s). " +
+            "More than 1 = as long as the lever sits in the gear without the clutch.");
     }
 
     // --- setups -----------------------------------------------------------------------------------
@@ -193,10 +219,47 @@ internal static class Shifter
                 Plugin.Info($"shifter: first gear engaged, '{Active.Name}' takes over the gears");
             }
             RangeTick(now);
-            if (slot == Slot) return;
-            Slot = slot;
-            LastChange = now;
+            if (slot != Slot)
+            {
+                Slot = slot;
+                LastChange = now;
+                string why = "";
+                // AfterGrind StayInGear, clutch not pressed: the car keeps the gear it is in (_inGear) while the
+                // lever is on its way. Build 3 sent neutral for the ~0.1 s the lever crossed neutral (he saw it drop
+                // to N and come back), and lever 2 -> 1 (grinds, keeps 2) -> back to 2 counted as a new grind and
+                // ended in neutral (JonkoMonk 2026-11-13).
+                int carGear = _inGear;
+                bool stay = GrindResult.Value == AfterGrind.StayInGear && Engaged && !ClutchLetsIn(out why);
+                _grindHold = 0;
+                _neutralHoldUntil = -1f;
+                Grinding = false;
+                if (slot == 0)
+                {
+                    // Lever in neutral: keep the gear for a moment; it goes to neutral if the lever stays there.
+                    if (stay && carGear != 0) { _grindHold = carGear; _neutralHoldUntil = now + NeutralGrace; }
+                }
+                else if (stay && carGear == slot)
+                    Plugin.Info($"shifter: lever back in {(slot < 0 ? "reverse" : $"gear {slot}")}, the gear it never left");
+                else if (Engaged && !ClutchLetsIn(out why))
+                {
+                    Grinding = true;
+                    if (stay) _grindHold = carGear;   // 0 after sitting in neutral: then it's neutral
+                    Grind(now, why);
+                }
+            }
+            else if (Grinding && ClutchLetsIn(out _))
+            {
+                Grinding = false;
+                Plugin.Info($"shifter: clutch in ({Wheel.Clutch * 100f:0}%), the gear goes in");
+            }
+            else if (Slot == 0 && _grindHold != 0 && (now >= _neutralHoldUntil || ClutchLetsIn(out _)))
+                _grindHold = 0;   // stayed in neutral (or the clutch went down): now really neutral
+            int inGear = Grinding || Slot == 0 ? _grindHold : Slot;
+            if (inGear == _inGear) return;
+            _inGear = inGear;
             if (!Engaged) return;
+            slot = inGear;
+            if (Grinding) return;   // the grind already said so; the car is in neutral (or kept its old gear)
             int max = CarGears();
             if (slot != 0) Gear = GameGear(slot);
             _rangeWant = slot != 0 ? WantLow(slot) : null;
@@ -212,6 +275,55 @@ internal static class Shifter
         catch (Exception e) { Plugin.ErrorOnce("shifter", e); }
     }
 
+    // --- clutch required -----------------------------------------------------------------------------
+    // Without the clutch pressed far enough a gear grinds and doesn't go in: the car stays in neutral (the lever
+    // has left the old gear) until the clutch goes down while the lever is still in the slot, or the lever moves.
+    // Taking a gear OUT never needs the clutch. Off while the engine is off (nothing spins, gears go in) and
+    // until a clutch pedal has been pressed this session (players without one could never shift otherwise).
+
+    // The lever sits in a gear that didn't go in.
+    public static bool Grinding { get; private set; }
+    static float _grindAt = -100f;
+    // AfterGrind StayInGear: the gear the car keeps while the lever grinds or crosses neutral, and how long a
+    // lever in neutral keeps it (longer = really neutral).
+    static int _grindHold;
+    static float _neutralHoldUntil = -1f;
+    const float NeutralGrace = 0.6f;
+    public static bool BuzzWhileHeld => GrindBuzzLength.Value > 1.05f;
+
+    public static bool ClutchRequiredNow => ClutchRequired.Value && CarPhysics.ClutchSeen && CarPhysics.EngineRunning;
+
+    static bool ClutchLetsIn(out string why)
+    {
+        why = "";
+        if (!ClutchRequiredNow) return true;
+        float need = Mathf.Clamp(ClutchToShift.Value, 0.1f, 1f);
+        if (Wheel.Clutch >= need) return true;
+        why = $"clutch {Wheel.Clutch * 100f:0}%, needs {need * 100f:0}%";
+        return false;
+    }
+
+    static void Grind(float now, string why)
+    {
+        _grindAt = now;
+        string stays = _grindHold == 0 ? "stays in neutral" : $"stays in {(_grindHold < 0 ? "reverse" : $"gear {_grindHold}")}";
+        Plugin.Info($"shifter: lever {(Slot < 0 ? "R" : Slot.ToString())} grinds ({why}): {stays}");
+        Buttons.LastText = "Grind! Press the clutch to shift"; Buttons.LastTime = now; Buttons.AlwaysShowUntil = now + 2f;
+    }
+
+    // Force feedback buzz for a grind (from Ffb, in steering-force units): a 25 Hz rattle, full for GrindBuzzLength
+    // (0.3 s by default), then fading out over 0.3 s; above 1 s: as long as the gear grinds.
+    public static float GrindForce(float now)
+    {
+        float t = now - _grindAt;
+        if (t < 0f || !Grinding || GrindBuzz.Value <= 0f) return 0f;
+        float full = BuzzWhileHeld ? float.MaxValue : Mathf.Clamp(GrindBuzzLength.Value, 0.1f, 1f);
+        if (t > full + 0.3f) return 0f;
+        float fade = t < full ? 1f : 1f - (t - full) / 0.3f;
+        float square = Mathf.Sin(t * 2f * Mathf.PI * 25f) >= 0f ? 1f : -1f;
+        return square * Mathf.Clamp01(GrindBuzz.Value) * 0.6f * fade;
+    }
+
     // --- range as gears -----------------------------------------------------------------------------
     // Cars with only 2 forward gears and a high/low range: the H-pattern becomes a 4-speed, shortest first:
     // lever 1 = 1st low, 2 = 2nd low, 3 = 1st high, 4 = 2nd high (5-7 = 2nd high), R = reverse low.
@@ -224,6 +336,7 @@ internal static class Shifter
     static bool? _rangeWant;
     static bool _rangeTapped;
     static float _rangeDeadline;
+    static bool _rangeWaitLogged;
 
     static void RangeTick(float now)
     {
@@ -234,7 +347,22 @@ internal static class Shifter
         if (low == _rangeWant.Value) { _rangeWant = null; return; }
         if (!_rangeTapped)
         {
-            if (!Buttons.TapAction("HiLo", now)) { _rangeWant = null; Plugin.Warn("shifter: no key for HiLo, can't switch range"); return; }
+            if (!Buttons.TapAction("HiLo", now))
+            {
+                // The tap is a key press, which only reaches the game while its window is in front. The shifter is read
+                // in the background, so a lever move with another window in front (the 2026-11-13 test log said
+                // "no key for HiLo" although HiLo = Tab) now waits and switches once the game is back in front.
+                if (Buttons.ActionHasKey("HiLo"))
+                {
+                    if (!_rangeWaitLogged) { _rangeWaitLogged = true; Plugin.Info("shifter: range switch waits until the game window is in front (it presses the HiLo key)"); }
+                    return;
+                }
+                _rangeWant = null;
+                Plugin.Warn("shifter: no key set for HiLo ([ButtonKeys] HiLo in the settings file is empty or unknown), can't switch range");
+                Buttons.LastText = "Range: no key set for HiLo in the settings file"; Buttons.LastTime = now; Buttons.AlwaysShowUntil = now + 3f;
+                return;
+            }
+            _rangeWaitLogged = false;
             _rangeTapped = true;
             _rangeDeadline = now + 1f;
             return;
@@ -273,14 +401,14 @@ internal static class Shifter
         if (!Engaged) return;
         d.InputFlags |= NetworkInputData.InputFlagsEnum.InputSource_DirectInputDevice;
         // Recomputed every tick, so getting into a car with fewer gears applies at once.
-        if (Slot != 0) Gear = GameGear(Slot);
+        if (_inGear != 0) Gear = GameGear(_inGear);
         if (Gear == 0) Gear = 1;
         // Neutral sends 0 ("no change"): the game then leaves the gearbox where CarPhysics put it (neutral).
         // Sending the held gear made the car flick back into it for a tick or two after leaving neutral, because
         // those older inputs were still being applied. Without CarPhysics (co-op guest) 0 keeps the last gear,
         // and the held clutch below makes that neutral.
-        d.SelectedManualGear = Slot == 0 ? 0 : Gear;
-        if (Slot == 0) d.Clutch = 1f;
+        d.SelectedManualGear = _inGear == 0 ? 0 : Gear;
+        if (_inGear == 0) d.Clutch = 1f;
     }
 
     // Lever slot -> game gear: reverse stays reverse; slots above the car's top gear give the top gear.

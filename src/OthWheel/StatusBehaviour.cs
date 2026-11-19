@@ -24,6 +24,7 @@ public class StatusBehaviour : MonoBehaviour
     const float BannerDelay = 4f, BannerFor = 10f;
     float _bannerFrom = -1f;
     string _banner;
+    bool? _settingsHint;   // decided once, with the banner: this start line carries the one-time settings hint
     long _lastTicks, _lastHb, _lastKbd, _lastOnInput;
     string _lastLine;
 
@@ -53,6 +54,7 @@ public class StatusBehaviour : MonoBehaviour
             DirectInputLate.Update(now);
             Ffb.Update(now);
             GearProbe.Update(now);
+            UpdateNotice.Update();
 
             float interval = Settings.LogInterval.Value;
             if (interval <= 0f || now < _nextLog) return;
@@ -104,7 +106,9 @@ public class StatusBehaviour : MonoBehaviour
                 _style.normal.textColor = Color.yellow;
             }
             if (_bannerFrom < 0f && InputHooks.LocalVehicleInput != null) _bannerFrom = now + BannerDelay;
-            if (_bannerFrom >= 0f && now >= _bannerFrom && now < _bannerFrom + BannerFor)
+            // Not while the setup wizard is open: it opens by itself 1 s before this line appears, and the line's
+            // "Press F3 for the setup wizard" would close it (F3 = cancel in the wizard). Shown once it closes, if still in time.
+            if (_bannerFrom >= 0f && now >= _bannerFrom && now < _bannerFrom + BannerFor && !Wizard.IsOpen)
             {
                 string key = Settings.SetupKey.Value;
                 _banner ??= Devices.Active == null
@@ -116,11 +120,21 @@ public class StatusBehaviour : MonoBehaviour
                     : Devices.Active.Ffb?.Direction == 0
                         ? $"Wheel mod {Plugin.Version} active ({Devices.Active.Name}). Force feedback not tested yet: {key} > force feedback test."
                         : Ffb.Ready
-                            ? $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}, force feedback on"
+                            ? $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}, force feedback on" +
+                              ((_settingsHint ??= !Settings.SettingsHintShown.Value) == true ? $". Press {key} for the settings menu" : "")
                             : $"Wheel mod {Plugin.Version} active: {Devices.Active.Name}. Force feedback NOT connected yet: click into the game window.";
                 // With messages off only a problem is shown (everything but the "all fine" line).
                 bool fine = Devices.Active != null && Ffb.Enabled.Value && Devices.Active.Ffb?.Direction != 0 && Ffb.Ready;
-                if (Settings.ShowMessages.Value || !fine) GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
+                if (Settings.ShowMessages.Value || !fine)
+                {
+                    GUI.Label(new Rect(30, 80, 1800, 50), _banner, _style);
+                    // First drive only: once the settings hint has been on screen, it isn't shown again.
+                    if (_settingsHint == true && !Settings.SettingsHintShown.Value)
+                    {
+                        Settings.SettingsHintShown.Value = true;
+                        Plugin.Info($"start message: showed the settings hint ({key}) once");
+                    }
+                }
             }
             // Another copy of the mod loads too (left behind by an uninstall, or installed for both loaders):
             // always shown, for 30 s from the first time in a car.
@@ -133,6 +147,8 @@ public class StatusBehaviour : MonoBehaviour
             }
             Wizard.OnGUI();
             Menu.OnGUI();
+            try { UpdateNotice.OnGUI(now); }
+            catch (Exception e) { Plugin.ErrorOnce("update notice", e); }
             bool show = Settings.ShowMessages.Value && (Buttons.ShowButtonNumbers.Value || now < Buttons.AlwaysShowUntil);
             if (Wizard.IsOpen || !show || now - Buttons.LastTime > 3f) return;
             GUI.Label(new Rect(30, 30, 1400, 50), Buttons.LastText, _style);

@@ -16,7 +16,7 @@ namespace OthWheel;
 // full setup, force feedback test, rotation, share, support report.
 internal static class Wizard
 {
-    enum Page { Closed, Menu, Devices, Steering, Rotation, Throttle, Brake, Clutch, FfbIntro, FfbDirection, FfbStrength, Buttons, Summary, Done, ShifterGear }
+    enum Page { Closed, Menu, Devices, Steering, Rotation, Throttle, Brake, Clutch, FfbIntro, FfbDirection, FfbStrength, Buttons, Summary, Done, ShifterGear, ShifterClutch }
     // What happens after the last step of a partial run.
     enum Mode { Full, ButtonsOnly, FfbOnly }
 
@@ -111,6 +111,7 @@ internal static class Wizard
             case Page.Summary: SummaryPage(digit, back); break;
             case Page.Done: DonePage(digit); break;
             case Page.ShifterGear: ShifterGearPage(now, skip, back); break;
+            case Page.ShifterClutch: ShifterClutchPage(now, digit, back); break;
         }
     }
 
@@ -286,6 +287,7 @@ internal static class Wizard
         sb.AppendLine(sh != null ? "7   Set up the H-pattern shifter again" : "7   Set up an H-pattern shifter");
         if (sh?.FilePath != null) sb.AppendLine("8   Remove the shifter setup");
         sb.AppendLine("9   Remove the wheel mod (shows which files to delete and opens their folder)");
+        sb.AppendLine($"0   Clutch needed to shift (H-shifter): {(Shifter.ClutchRequired.Value ? $"ON, at {Shifter.ClutchToShift.Value * 100f:0}% clutch" : "off")}");
         _body = sb.ToString();
         _footer = $"{_openKeyName} = close";
 
@@ -316,6 +318,9 @@ internal static class Wizard
                 break;
             case 9:
                 _note = RemoveNote();
+                break;
+            case 0:
+                Go(Page.ShifterClutch, now);
                 break;
         }
     }
@@ -414,10 +419,44 @@ internal static class Wizard
         {
             string path = Shifter.Save(_shifterDraft);
             Plugin.Info($"wizard: saved shifter '{_shifterDraft.Name}' ({_shifterDraft.Describe()}) to {path}");
-            _note = $"Shifter saved ({_shifterDraft.Describe()}). Close this menu, put the lever in a gear and drive!";
+            _note = $"Shifter saved ({_shifterDraft.Describe()}). One more choice:";
+            Go(Page.ShifterClutch, now);
+            return;
         }
         catch (Exception e) { _note = "Saving failed: " + e.Message; Plugin.Error("wizard shifter save: " + e); }
         Go(Page.Menu, now);
+    }
+
+    // Clutch-required shifting: on/off and how far the clutch must be down (also in F3 > Clutch & shifter).
+    static void ShifterClutchPage(float now, int digit, bool back)
+    {
+        _title = "Clutch needed to shift?";
+        bool on = Shifter.ClutchRequired.Value;
+        float need = Shifter.ClutchToShift.Value;
+        var sb = new StringBuilder();
+        sb.AppendLine("With this on, a gear on the H-shifter only goes in with the clutch pedal pressed, like a real car.");
+        sb.AppendLine("Without the clutch the gear grinds (a buzz in the wheel) and doesn't go in: the car stays in neutral");
+        sb.AppendLine("until you press the clutch. Taking a gear out never needs the clutch, and with the engine off gears go in freely.");
+        sb.AppendLine("It needs a clutch pedal (it starts once the clutch has been pressed).");
+        sb.AppendLine();
+        sb.AppendLine($"Clutch needed to shift: {(on ? "ON" : "OFF")}");
+        sb.AppendLine($"Clutch must be down at least: {need * 100f:0}%     (your clutch now: {(Devices.Active?.Clutch == null ? "no clutch pedal set up" : $"{Wheel.Clutch * 100f:0}%")})");
+        sb.AppendLine();
+        sb.AppendLine("1   On");
+        sb.AppendLine("2   Off");
+        sb.AppendLine("3   Less clutch needed (-5%)");
+        sb.AppendLine("4   More clutch needed (+5%)");
+        _body = sb.ToString();
+        _footer = $"F10 = done (back to the menu)     {_openKeyName} = close";
+
+        if (back) { Go(Page.Menu, now); return; }
+        switch (digit)
+        {
+            case 1: Shifter.ClutchRequired.Value = true; _note = "Clutch needed to shift: ON"; Plugin.Info("wizard: clutch needed to shift on"); break;
+            case 2: Shifter.ClutchRequired.Value = false; _note = "Clutch needed to shift: off"; Plugin.Info("wizard: clutch needed to shift off"); break;
+            case 3: Shifter.ClutchToShift.Value = Mathf.Max(0.1f, Mathf.Round((need - 0.05f) * 20f) / 20f); _note = ""; break;
+            case 4: Shifter.ClutchToShift.Value = Mathf.Min(1f, Mathf.Round((need + 0.05f) * 20f) / 20f); _note = ""; break;
+        }
     }
 
     static bool _rotationOnly;
@@ -831,7 +870,7 @@ internal static class Wizard
         _title = "Done";
         _body = "Your setup is saved and active.\n\n" +
                 $"Press {_openKeyName} any time to change buttons, test force feedback, or share this setup.\n" +
-                $"Have an H-pattern shifter? {_openKeyName} > 7 sets it up.";
+                $"Have an H-pattern shifter? {_openKeyName} > 7 sets it up ({_openKeyName} > 0: clutch needed to shift).";
         _footer = $"{_openKeyName} = close     5 = share this setup";
         if (digit == 5) _note = Support.Share(Devices.Active);
     }

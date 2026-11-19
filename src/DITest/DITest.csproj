@@ -10,6 +10,7 @@
   <ItemGroup>
     <Compile Include="..\Shared\DInput.cs" LinkBase="Shared" />
     <Compile Include="..\OthWheel\Profile.cs" LinkBase="OthWheel" />
+    <Compile Include="..\OthWheel\Win32.cs" LinkBase="OthWheel" />
     <EmbeddedResource Include="..\OthWheel\Presets\*.json" LinkBase="Presets" />
   </ItemGroup>
 </Project>

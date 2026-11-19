@@ -19,4 +19,9 @@ namespace OthWheel
         public static void Warn(string s) => Console.WriteLine("  warn: " + s);
         public static void Error(string s) => Console.WriteLine("  ERROR: " + s);
     }
+
+    internal static class ModPaths
+    {
+        public static string DataDir = Path.Combine(Path.GetTempPath(), "othwheel-selftest");
+    }
 }
